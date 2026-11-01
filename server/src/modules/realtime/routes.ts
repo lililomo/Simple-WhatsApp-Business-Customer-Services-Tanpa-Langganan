@@ -31,7 +31,15 @@ export async function realtimeRoutes(app: AppInstance) {
     });
     const zip = gzip ? createGzip({ flush: constants.Z_SYNC_FLUSH }) : null;
     zip?.pipe(res);
-    const send = (chunk: string) => (zip ? zip.write(chunk) : res.write(chunk));
+    const write = (chunk: string) => (zip ? zip.write(chunk) : res.write(chunk));
+    // mod_http2 (H2OutputBuffering default on) baru meneruskan data saat potongan berikutnya datang.
+    // Komentar kecil sesaat setelah setiap event "mendorong" event itu ke browser tanpa menunggu ping.
+    let nudge: NodeJS.Timeout | undefined;
+    const send = (chunk: string) => {
+      write(chunk);
+      clearTimeout(nudge);
+      nudge = setTimeout(() => write(':\n\n'), 50);
+    };
     const end = () => (zip ? zip.end() : res.end());
 
     send(`retry: 3000\nevent: hello\ndata: {}\n\n`);
@@ -57,6 +65,7 @@ export async function realtimeRoutes(app: AppInstance) {
 
     const cleanup = () => {
       clearInterval(ping);
+      clearTimeout(nudge);
       unsubscribe();
       zip?.destroy();
     };
