@@ -18,8 +18,15 @@ export function testConfig(overrides: Record<string, string> = {}) {
   });
 }
 
-export async function buildTestApp(database: Database, overrides: Record<string, string> = {}): Promise<AppInstance> {
-  const app = await buildApp({ config: testConfig(overrides), database }, { logger: false, webDistDir: '/tidak-ada' });
+export async function buildTestApp(
+  database: Database,
+  overrides: Record<string, string> = {},
+  fetchFn?: typeof fetch,
+): Promise<AppInstance> {
+  const app = await buildApp(
+    { config: testConfig(overrides), database, fetch: fetchFn },
+    { logger: false, webDistDir: '/tidak-ada' },
+  );
   await app.ready();
   return app;
 }

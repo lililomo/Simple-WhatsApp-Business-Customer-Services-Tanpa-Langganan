@@ -4,6 +4,7 @@ import { EmptyState } from './components/EmptyState';
 import { LoginPage } from './features/auth/LoginPage';
 import { RequireAuth } from './features/auth/RequireAuth';
 import { ChatsPage } from './features/chats/ChatsPage';
+import { WhatsAppSettingsPage } from './features/connection/WhatsAppSettingsPage';
 import { ProfilePage } from './features/settings/ProfilePage';
 import { SettingsLayout } from './features/settings/SettingsLayout';
 import { UsersPage } from './features/settings/UsersPage';
@@ -39,7 +40,7 @@ export const router = createBrowserRouter([
             path: 'whatsapp',
             element: (
               <RequireAuth admin>
-                <EmptyState title="Koneksi WhatsApp">Segera hadir.</EmptyState>
+                <WhatsAppSettingsPage />
               </RequireAuth>
             ),
           },

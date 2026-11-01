@@ -13,6 +13,8 @@ import type { Role } from '@wa/shared';
 export interface AppDeps {
   config: Config;
   database: Database;
+  /** fetch untuk Graph API; diganti mock di test. */
+  fetch?: typeof fetch;
 }
 
 export type AppInstance = FastifyInstance<

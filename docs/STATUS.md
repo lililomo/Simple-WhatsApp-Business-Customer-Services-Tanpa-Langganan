@@ -17,7 +17,8 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
   - Cron aaPanel "WA Inbox – Watchdog" (tiap 5 menit) dan "Backup DB wainbox" (harian 01:00, simpan 7) aktif, dan sudah sukses dijalankan sekali.
   - Build di server memakai cache npm milik `www` (cache global aaPanel dimiliki root) dan membuang devDependencies setelah build.
   - **Admin produksi belum dibuat:** pemilik menjalankan sendiri `ssh -t <host> bash /www/wwwroot/wa.kppbwi.app/bin/cli.sh user:create --admin` dan mengetik password di terminal.
-- **Langkah berikutnya:** Prompt 4 di [PROMPTS.md](PROMPTS.md).
+- **Selesai:** Prompt 4 (Graph client dengan retry khusus GET, peta error Meta → bahasa Indonesia, modul koneksi: validasi App ID/Secret lewat app access token, validasi WABA + daftar nomor, simpan terenkripsi, cek koneksi + subscribe app ke WABA, register nomor dengan PIN, status error saat token ditolak; web: wizard Pengaturan → WhatsApp dan banner status koneksi).
+- **Langkah berikutnya:** Prompt 5 di [PROMPTS.md](PROMPTS.md).
 - Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
 - **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
 

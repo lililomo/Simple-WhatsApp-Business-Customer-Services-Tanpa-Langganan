@@ -9,6 +9,7 @@ import { AppError } from './lib/errors';
 import { loggerOptions } from './lib/logger';
 import { authPlugin } from './modules/auth/plugin';
 import { authRoutes } from './modules/auth/routes';
+import { connectionRoutes } from './modules/connection/routes';
 import { userRoutes } from './modules/users/routes';
 import { registerSpa } from './spa';
 import type { AppDeps, AppInstance } from './types';
@@ -63,6 +64,7 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
 
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(userRoutes, { prefix: '/api/users' });
+  await app.register(connectionRoutes, { prefix: '/api/connection' });
   await registerSpa(app, opts.webDistDir);
 
   return app;
