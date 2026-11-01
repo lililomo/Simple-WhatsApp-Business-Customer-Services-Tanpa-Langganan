@@ -20,7 +20,7 @@ export async function connectionRoutes(app: AppInstance) {
   const appUrl = deps.config.APP_URL;
 
   // Ringkasan status untuk banner, boleh dilihat semua pengguna.
-  app.get('/status', { preHandler: requireUserHook }, async (): Promise<ConnectionStatusDTO> => {
+  app.get('/status', { preValidation: requireUserHook }, async (): Promise<ConnectionStatusDTO> => {
     const account = await getAccount(deps);
     return {
       connected: !!account,
@@ -34,7 +34,7 @@ export async function connectionRoutes(app: AppInstance) {
 
   app.register(async (instance) => {
     const admin = instance.withTypeProvider<ZodTypeProvider>();
-    admin.addHook('preHandler', requireAdminHook);
+    admin.addHook('preValidation', requireAdminHook);
 
     admin.get('/', async () => {
       const account = await getAccount(deps);

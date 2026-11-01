@@ -54,7 +54,7 @@ const newSecret = () => `whsec_${randomBase62(32)}`;
 export async function outboundWebhookRoutes(app: AppInstance) {
   const deps = app.deps;
   const { db } = deps.database;
-  app.addHook('preHandler', requireAdminHook);
+  app.addHook('preValidation', requireAdminHook);
 
   const find = async (id: number) => {
     const [row] = await db.select().from(outboundWebhooks).where(eq(outboundWebhooks.id, id)).limit(1);

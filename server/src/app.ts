@@ -86,7 +86,7 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
     transform: jsonSchemaTransform,
     hideUntagged: true,
   });
-  await app.register(swaggerUi, { routePrefix: '/api/docs', uiHooks: { preHandler: requireAdminHook }, staticCSP: true });
+  await app.register(swaggerUi, { routePrefix: '/api/docs', uiHooks: { onRequest: requireAdminHook }, staticCSP: true });
 
   app.get('/healthz', async (): Promise<Health> => ({
     ok: true,

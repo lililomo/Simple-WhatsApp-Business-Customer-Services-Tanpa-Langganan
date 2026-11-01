@@ -13,7 +13,7 @@ const idParams = z.object({ id: z.coerce.number().int().positive() });
 /** Kelola API key (admin, sesi login). */
 export async function apiKeyRoutes(app: AppInstance) {
   const { db } = app.deps.database;
-  app.addHook('preHandler', requireAdminHook);
+  app.addHook('preValidation', requireAdminHook);
 
   app.get('/', async () => {
     const rows = await db.select().from(apiKeys).orderBy(desc(apiKeys.id));

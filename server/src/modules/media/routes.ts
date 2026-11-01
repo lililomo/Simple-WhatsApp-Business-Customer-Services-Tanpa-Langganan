@@ -42,7 +42,7 @@ export async function replyWithMedia(deps: AppDeps, reply: FastifyReply, row: Me
 export async function mediaRoutes(app: AppInstance) {
   const deps = app.deps;
   const { db } = deps.database;
-  app.addHook('preHandler', requireUserHook);
+  app.addHook('preValidation', requireUserHook);
 
   app.get('/:id', { schema: { params: idParams, querystring: downloadQuery } }, async (req, reply) => {
     const [row] = await db.select().from(media).where(eq(media.id, req.params.id)).limit(1);

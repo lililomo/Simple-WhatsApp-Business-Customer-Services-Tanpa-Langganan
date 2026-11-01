@@ -21,7 +21,7 @@ const idParams = z.object({ id: z.coerce.number().int().positive() });
 export async function conversationRoutes(app: AppInstance) {
   const deps = app.deps;
   const { db } = deps.database;
-  app.addHook('preHandler', requireUserHook);
+  app.addHook('preValidation', requireUserHook);
 
   app.get('/', { schema: { querystring: listConversationsQuery } }, async (req): Promise<ConversationPage> =>
     listConversations(db, req.query),
@@ -79,7 +79,7 @@ export async function conversationRoutes(app: AppInstance) {
 export async function contactRoutes(app: AppInstance) {
   const deps = app.deps;
   const { db } = deps.database;
-  app.addHook('preHandler', requireUserHook);
+  app.addHook('preValidation', requireUserHook);
 
   app.patch(
     '/:id',

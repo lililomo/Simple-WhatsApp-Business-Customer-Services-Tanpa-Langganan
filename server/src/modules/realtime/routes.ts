@@ -13,7 +13,7 @@ export async function realtimeRoutes(app: AppInstance) {
   const deps = app.deps;
   const { db } = deps.database;
 
-  app.get('/events', { preHandler: requireUserHook }, (req, reply) => {
+  app.get('/events', { preValidation: requireUserHook }, (req, reply) => {
     requireUser(req);
     const tokenHash = req.sessionTokenHash!;
     reply.hijack();

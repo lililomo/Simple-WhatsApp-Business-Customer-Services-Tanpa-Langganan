@@ -59,13 +59,13 @@ export async function authRoutes(app: AppInstance) {
     return { ok: true };
   });
 
-  app.get('/me', { preHandler: requireUserHook }, async (req) => {
+  app.get('/me', { preValidation: requireUserHook }, async (req) => {
     requireUser(req);
     const user = await db.query.users.findFirst({ where: eq(users.id, req.user.id) });
     return { user: toUserDTO(user!) };
   });
 
-  app.patch('/password', { preHandler: requireUserHook, schema: { body: changePasswordBody } }, async (req) => {
+  app.patch('/password', { preValidation: requireUserHook, schema: { body: changePasswordBody } }, async (req) => {
     requireUser(req);
     const user = await db.query.users.findFirst({ where: eq(users.id, req.user.id) });
     if (!user || !(await verifyPassword(user.passwordHash, req.body.currentPassword))) {

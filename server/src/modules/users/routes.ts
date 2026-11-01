@@ -13,7 +13,7 @@ const idParams = z.object({ id: z.coerce.number().int().positive() });
 
 export async function userRoutes(app: AppInstance) {
   const db = app.deps.database.db;
-  app.addHook('preHandler', requireAdminHook);
+  app.addHook('preValidation', requireAdminHook);
 
   app.get('/', async () => {
     const rows = await db.select().from(users).orderBy(asc(users.name));

@@ -12,7 +12,7 @@ const idParams = z.object({ id: z.coerce.number().int().positive() });
 export async function adminRoutes(app: AppInstance) {
   const deps = app.deps;
   const { db } = deps.database;
-  app.addHook('preHandler', requireAdminHook);
+  app.addHook('preValidation', requireAdminHook);
 
   app.get('/webhook-events', { schema: { querystring: listQuery } }, async (req) => {
     const rows = await db

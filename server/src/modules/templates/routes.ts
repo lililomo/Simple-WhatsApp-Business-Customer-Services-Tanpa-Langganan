@@ -14,7 +14,7 @@ const listQuery = z.object({ status: z.string().optional() });
 
 export async function templateRoutes(app: AppInstance) {
   const deps = app.deps;
-  app.addHook('preHandler', requireUserHook);
+  app.addHook('preValidation', requireUserHook);
 
   app.get('/', { schema: { querystring: listQuery } }, async (req) => ({ templates: await listTemplates(deps, req.query.status) }));
 
@@ -29,7 +29,7 @@ export async function templateRoutes(app: AppInstance) {
 /** POST /api/conversations/start — mulai chat ke nomor baru (wajib template). */
 export async function startConversationRoutes(app: AppInstance) {
   const deps = app.deps;
-  app.addHook('preHandler', requireUserHook);
+  app.addHook('preValidation', requireUserHook);
 
   app.post('/start', { schema: { body: startConversationBody } }, async (req, reply) => {
     requireUser(req);

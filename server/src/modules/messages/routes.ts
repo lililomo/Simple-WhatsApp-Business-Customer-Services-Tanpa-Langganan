@@ -11,7 +11,7 @@ const idParams = z.object({ id: z.coerce.number().int().positive() });
 /** POST /api/conversations/:id/messages — balasan dari petugas lewat UI. */
 export async function conversationMessageRoutes(app: AppInstance) {
   const deps = app.deps;
-  app.addHook('preHandler', requireUserHook);
+  app.addHook('preValidation', requireUserHook);
 
   app.post('/:id/messages', { schema: { params: idParams, body: sendMessageBody } }, async (req, reply) => {
     requireUser(req);
@@ -33,7 +33,7 @@ export async function conversationMessageRoutes(app: AppInstance) {
 
 export async function messageRoutes(app: AppInstance) {
   const deps = app.deps;
-  app.addHook('preHandler', requireUserHook);
+  app.addHook('preValidation', requireUserHook);
 
   app.post('/:id/retry', { schema: { params: idParams } }, async (req) => {
     requireUser(req);

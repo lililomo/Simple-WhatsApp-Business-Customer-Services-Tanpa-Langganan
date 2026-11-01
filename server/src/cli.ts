@@ -4,6 +4,7 @@ import { loadConfig, type Config } from './config';
 import { EventBus } from './lib/bus';
 import { getAccount } from './modules/connection/service';
 import { syncTemplates } from './modules/templates/service';
+import { runHousekeeping } from './modules/housekeeping/service';
 import { createDatabase, type Database } from './db/client';
 import { runMigrations } from './db/migrate';
 import { createUser } from './modules/users/service';
@@ -12,6 +13,15 @@ import { AppError } from './lib/errors';
 type Command = (database: Database, args: string[], config: Config) => Promise<void>;
 
 const commands: Record<string, Command> = {
+  // Dijalankan cron aaPanel "WA Inbox – Housekeeping" setiap hari.
+  housekeeping: async (database, _args, config) => {
+    const r = await runHousekeeping({ config, database, bus: new EventBus() });
+    console.log(
+      `Housekeeping: ${r.sessions} sesi, ${r.webhookEvents} event webhook, ${r.deliveries} delivery, ` +
+        `${r.idempotencyKeys} idempotency key, ${r.mediaFiles} file media dihapus.`,
+    );
+  },
+
   // Dijalankan cron aaPanel "WA Inbox – Sinkron template".
   'templates:sync': async (database, _args, config) => {
     const deps = { config, database, bus: new EventBus() };

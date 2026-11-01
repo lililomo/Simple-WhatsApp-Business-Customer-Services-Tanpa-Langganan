@@ -64,7 +64,7 @@ export async function apiV1Routes(app: AppInstance) {
     keyGenerator: (req: FastifyRequest) => `api-key:${req.apiKey?.id ?? req.ip}`,
   };
   const opts = <S extends Record<string, unknown>>(scope: ApiScope, schema: S, summary: string) => ({
-    preHandler: requireScope(scope),
+    preValidation: requireScope(scope),
     config: { rateLimit },
     schema: { tags: ['API v1'], summary, security: [{ bearerAuth: [] }], ...schema },
   });

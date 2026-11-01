@@ -11,6 +11,8 @@ export async function registerSpa(app: AppInstance, dir = webDistDir) {
   const hasWeb = existsSync(`${dir}/index.html`);
   if (hasWeb) {
     await app.register(fastifyStatic, { root: dir, wildcard: false, index: false });
+    // Kebijakan privasi publik (dibutuhkan Meta App untuk mode Live).
+    app.get('/privacy', (_req, reply) => reply.sendFile('privacy.html'));
   }
 
   app.setNotFoundHandler((req, reply) => {
