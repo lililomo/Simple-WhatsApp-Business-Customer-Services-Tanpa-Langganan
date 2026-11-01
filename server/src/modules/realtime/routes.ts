@@ -38,7 +38,7 @@ export async function realtimeRoutes(app: AppInstance) {
     const send = (chunk: string) => {
       write(chunk);
       clearTimeout(nudge);
-      nudge = setTimeout(() => write(':\n\n'), 50);
+      nudge = setTimeout(() => write(':\n\n'), 1000);
     };
     const end = () => (zip ? zip.end() : res.end());
 
