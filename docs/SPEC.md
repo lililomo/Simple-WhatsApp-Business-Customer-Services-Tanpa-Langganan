@@ -431,7 +431,7 @@ Akses SSH, alamat server, dan catatan site lain ada di `DEPLOYMENT.local.md` (ti
 ├── storage/media/                       dipertahankan
 ├── releases/<YYYYmmdd-HHMMSS>-<sha7>/   kode + hasil build per deploy (simpan 3 terbaru)
 ├── app -> releases/<aktif>              symlink yang dijalankan aaPanel
-├── bin/                                 cli.sh, restart.sh, watchdog.sh (disalin dari deploy/server/bin)
+├── bin/                                 cli.sh, restart.sh, watchdog.sh, rollback.sh (disalin dari deploy/server/bin)
 └── placeholder/server.js                halaman sementara sebelum deploy pertama
 ```
 
@@ -452,6 +452,7 @@ Pengembangan dan deploy dilakukan dari laptop, oleh sesi Claude Code di folder p
    8. Healthcheck `http://127.0.0.1:3210/healthz` maksimal 40 detik. Field `version` wajib sama dengan `<sha>`. Jika gagal:
       - symlink dikembalikan ke release lama (pada deploy pertama: perintah jalan kembali ke placeholder);
       - restart;
+      - folder release yang gagal dihapus (log disalin ke `/www/wwwlogs/wa_kppbwi_app-activate-failed.log`), agar tidak pernah menjadi target rollback;
       - exit 1.
    9. Menghapus release selain 3 terbaru.
 4. Setelah sukses: `git push` ke GitHub sebagai cadangan.
@@ -463,7 +464,8 @@ Aturan penulisan skrip, dari review 1 Nov 2026:
 
 Operasional:
 - Log ringkas: `/www/wwwlogs/wa_kppbwi_app-deploy.log`.
-- Rollback manual: `scripts/deploy.sh --rollback`. Perintah ini mengarahkan symlink ke release sebelumnya, lalu restart dan healthcheck.
+- Rollback manual: `scripts/deploy.sh --rollback` (menjalankan `bin/rollback.sh` di server). Perintah ini mengarahkan symlink ke release sebelumnya, lalu restart dan healthcheck. Jika release itu tidak sehat, symlink kembali ke release semula.
+- Uji sandbox 1 Nov 2026 (project aaPanel di-stub, port terpisah): deploy pertama dari placeholder, build gagal, versi healthz salah + rollback otomatis, rollback manual, watchdog, dan kunci deploy tidak diwarisi proses Node. Semuanya lolos.
 - **Kontrak untuk aplikasi:**
   - script root `build` membangun shared, server, dan web;
   - `server/dist/cli.js db:migrate` tersedia;
