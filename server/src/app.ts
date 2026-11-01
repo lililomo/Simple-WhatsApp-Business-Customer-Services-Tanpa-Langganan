@@ -16,6 +16,7 @@ import { contactRoutes, conversationRoutes } from './modules/conversations/route
 import { realtimeRoutes } from './modules/realtime/routes';
 import { conversationMessageRoutes, messageRoutes } from './modules/messages/routes';
 import multipart from '@fastify/multipart';
+import { startConversationRoutes, templateRoutes } from './modules/templates/routes';
 import { webhookInRoutes } from './modules/webhook-in/routes';
 import { userRoutes } from './modules/users/routes';
 import { registerSpa } from './spa';
@@ -77,6 +78,8 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
   await app.register(connectionRoutes, { prefix: '/api/connection' });
   await app.register(conversationRoutes, { prefix: '/api/conversations' });
   await app.register(conversationMessageRoutes, { prefix: '/api/conversations' });
+  await app.register(startConversationRoutes, { prefix: '/api/conversations' });
+  await app.register(templateRoutes, { prefix: '/api/templates' });
   await app.register(messageRoutes, { prefix: '/api/messages' });
   await app.register(contactRoutes, { prefix: '/api/contacts' });
   await app.register(realtimeRoutes, { prefix: '/api' });

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router';
 import { Virtuoso } from 'react-virtuoso';
-import { Bell, Search } from 'lucide-react';
+import { Bell, MessageSquarePlus, Search } from 'lucide-react';
+import { NewChatDialog } from './TemplatePicker';
 import type { ConversationDTO, ConversationFilter } from '@wa/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,6 +60,7 @@ export function ConversationList() {
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
   const [permission, setPermission] = useState(() => (notificationsSupported() ? Notification.permission : 'denied'));
+  const [newChat, setNewChat] = useState(false);
   const query = useConversations(filter, q);
   const items = query.data?.pages.flatMap((p) => p.conversations) ?? [];
 
@@ -72,15 +74,22 @@ export function ConversationList() {
       <div className="flex flex-col gap-2 border-b p-3">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-lg font-semibold">Chat</h1>
-          {permission === 'default' && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void Notification.requestPermission().then(setPermission)}
-            >
-              <Bell /> Aktifkan notifikasi
+          <div className="flex gap-1">
+            {permission === 'default' && (
+              <Button
+                size="icon-sm"
+                variant="outline"
+                aria-label="Aktifkan notifikasi"
+                title="Aktifkan notifikasi"
+                onClick={() => void Notification.requestPermission().then(setPermission)}
+              >
+                <Bell />
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setNewChat(true)}>
+              <MessageSquarePlus /> Chat baru
             </Button>
-          )}
+          </div>
         </div>
         <div className="relative">
           <Search className="absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
@@ -121,6 +130,7 @@ export function ConversationList() {
           endReached={() => query.hasNextPage && !query.isFetchingNextPage && void query.fetchNextPage()}
         />
       )}
+      <NewChatDialog open={newChat} onOpenChange={setNewChat} />
     </div>
   );
 }

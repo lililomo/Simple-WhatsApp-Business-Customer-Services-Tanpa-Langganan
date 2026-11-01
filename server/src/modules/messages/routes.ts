@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { sendMessageBody } from '@wa/shared';
 import type { AppInstance } from '../../types';
 import { requireUser, requireUserHook } from '../auth/plugin';
+import { getTemplate, templateSpec } from '../templates/service';
 import { mediaSpec, textSpec } from './build';
 import { retryMessage, sendToConversation } from './service';
 
@@ -15,10 +16,15 @@ export async function conversationMessageRoutes(app: AppInstance) {
   app.post('/:id/messages', { schema: { params: idParams, body: sendMessageBody } }, async (req, reply) => {
     requireUser(req);
     const body = req.body;
-    const spec = body.type === 'text' ? textSpec(body.text) : await mediaSpec(deps, Number(body.mediaId), body.caption);
+    const spec =
+      body.type === 'text'
+        ? textSpec(body.text)
+        : body.type === 'media'
+          ? await mediaSpec(deps, Number(body.mediaId), body.caption)
+          : await templateSpec(deps, await getTemplate(deps, Number(body.templateId)), body.params);
     const result = await sendToConversation(deps, req.params.id, spec, { userId: req.user.id, ip: req.ip }, {
       clientRef: body.clientRef,
-      replyToMessageId: body.replyTo ? Number(body.replyTo) : null,
+      replyToMessageId: body.type !== 'template' && body.replyTo ? Number(body.replyTo) : null,
     });
     // Penolakan Meta tidak dijadikan error HTTP: pesan tetap tampil di UI dengan status gagal + alasan.
     return reply.status(201).send({ message: result.message });

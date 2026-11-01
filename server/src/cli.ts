@@ -1,14 +1,29 @@
 import { parseArgs } from 'node:util';
 import { createInterface } from 'node:readline';
-import { loadConfig } from './config';
+import { loadConfig, type Config } from './config';
+import { EventBus } from './lib/bus';
+import { getAccount } from './modules/connection/service';
+import { syncTemplates } from './modules/templates/service';
 import { createDatabase, type Database } from './db/client';
 import { runMigrations } from './db/migrate';
 import { createUser } from './modules/users/service';
 import { AppError } from './lib/errors';
 
-type Command = (database: Database, args: string[]) => Promise<void>;
+type Command = (database: Database, args: string[], config: Config) => Promise<void>;
 
 const commands: Record<string, Command> = {
+  // Dijalankan cron aaPanel "WA Inbox – Sinkron template".
+  'templates:sync': async (database, _args, config) => {
+    const deps = { config, database, bus: new EventBus() };
+    const account = await getAccount(deps);
+    if (!account) {
+      console.log('Nomor WhatsApp belum terhubung; sinkron template dilewati.');
+      return;
+    }
+    const result = await syncTemplates(deps, account);
+    console.log(`Template disinkronkan: ${result.synced}, ditandai terhapus: ${result.deleted}.`);
+  },
+
   'db:migrate': async ({ db }) => {
     await runMigrations(db);
     console.log('Migrasi database selesai.');
@@ -98,7 +113,7 @@ async function main() {
   const config = loadConfig();
   const database = createDatabase(config.DATABASE_URL, 2);
   try {
-    await command(database, args);
+    await command(database, args, config);
   } finally {
     await database.close();
   }

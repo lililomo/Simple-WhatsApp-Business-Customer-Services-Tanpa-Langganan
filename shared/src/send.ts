@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { templateParams } from './templates';
 
 export const TEXT_MAX = 4096;
 export const CAPTION_MAX = 1024;
@@ -18,6 +19,12 @@ export const sendMessageBody = z.discriminatedUnion('type', [
     mediaId: z.string().regex(/^\d+$/),
     caption: z.string().trim().max(CAPTION_MAX, `Keterangan maksimal ${CAPTION_MAX} karakter`).optional(),
     replyTo,
+    clientRef,
+  }),
+  z.object({
+    type: z.literal('template'),
+    templateId: z.string().regex(/^\d+$/),
+    params: templateParams.default({}),
     clientRef,
   }),
 ]);
