@@ -40,10 +40,16 @@ const updatedAt = () =>
 export const users = mysqlTable('users', {
   id: id(),
   name: varchar('name', { length: 120 }).notNull(),
-  email: varchar('email', { length: 190 }).notNull().unique(),
-  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  /** Hanya akun lokal (login darurat). Pegawai dari portal kppbwi.app dikenali lewat NIP. */
+  email: varchar('email', { length: 190 }).unique(),
+  passwordHash: varchar('password_hash', { length: 255 }),
   role: mysqlEnum('role', ['admin', 'agent']).notNull().default('agent'),
   isActive: boolean('is_active').notNull().default(true),
+  /** local = akun darurat dengan password; portal = masuk lewat SSO kppbwi.app. */
+  authSource: mysqlEnum('auth_source', ['local', 'portal']).notNull().default('local'),
+  nip: varchar('nip', { length: 20 }).unique(),
+  seksi: varchar('seksi', { length: 120 }),
+  jabatan: varchar('jabatan', { length: 190 }),
   lastLoginAt: ts('last_login_at'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -58,6 +64,8 @@ export const sessions = mysqlTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     tokenHash: char('token_hash', { length: 64 }).notNull().unique(),
     expiresAt: ts('expires_at').notNull(),
+    /** Batas akhir yang tidak bisa diperpanjang (sesi SSO tidak boleh melewati sesi portal). */
+    maxExpiresAt: ts('max_expires_at'),
     ip: varchar('ip', { length: 64 }),
     userAgent: varchar('user_agent', { length: 255 }),
     createdAt: createdAt(),
@@ -282,6 +290,12 @@ export const outboundWebhookDeliveries = mysqlTable(
   },
   (t) => [index('deliveries_status_idx').on(t.status, t.nextAttemptAt)],
 );
+
+/** ID tiket SSO yang sudah dipakai, agar satu tiket tidak bisa dipakai ulang. */
+export const ssoNonces = mysqlTable('sso_nonces', {
+  jti: varchar('jti', { length: 64 }).primaryKey(),
+  expiresAt: ts('expires_at').notNull(),
+});
 
 /** Pengaturan bersama (satu baris per kunci), mis. jam kerja dan kunci VAPID. */
 export const appSettings = mysqlTable('app_settings', {

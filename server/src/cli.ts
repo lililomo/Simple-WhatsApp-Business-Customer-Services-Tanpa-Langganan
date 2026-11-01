@@ -5,7 +5,11 @@ import { EventBus } from './lib/bus';
 import { getAccount } from './modules/connection/service';
 import { syncTemplates } from './modules/templates/service';
 import { runHousekeeping } from './modules/housekeeping/service';
-import { syncHolidays } from './modules/business-hours/service';
+import { and, eq, isNull } from 'drizzle-orm';
+import { getBusinessHours, saveBusinessHours, syncHolidays } from './modules/business-hours/service';
+import { createApiKey } from './modules/api-keys/service';
+import { apiKeys, outboundWebhooks } from './db/schema';
+import { encrypt, randomBase62 } from './lib/crypto';
 import { createDatabase, type Database } from './db/client';
 import { runMigrations } from './db/migrate';
 import { createUser } from './modules/users/service';
@@ -37,6 +41,31 @@ const commands: Record<string, Command> = {
     }
     const result = await syncTemplates(deps, account);
     console.log(`Template disinkronkan: ${result.synced}, ditandai terhapus: ${result.deleted}.`);
+  },
+
+  // Integrasi portal kppbwi.app pengganti Kirimdev: API key (kirim pesan) + webhook keluar (pesan masuk ke
+  // webhook billing portal). Mencetak baris .env portal ke stdout untuk langsung dialirkan ke berkas, tidak
+  // untuk ditampilkan. Dijalankan ulang = kunci & secret lama dicabut/diganti.
+  'portal:provision': async (database, _args, config) => {
+    const { db } = database;
+    const name = 'Portal kppbwi.app';
+    await db.update(apiKeys).set({ revokedAt: new Date() }).where(and(eq(apiKeys.name, name), isNull(apiKeys.revokedAt)));
+    const { key } = await createApiKey(db, name, ['messages:send', 'messages:read', 'media:write'], null);
+    const url = `${config.PORTAL_URL.replace(/\/$/, '')}/WhatsApp/webhook/wa-inbox`;
+    const secret = `whsec_${randomBase62(32)}`;
+    await db.delete(outboundWebhooks).where(eq(outboundWebhooks.url, url));
+    await db.insert(outboundWebhooks).values({ name: `${name} (billing)`, url, secretEnc: encrypt(secret, config.appKey), events: ['message.received'] });
+    process.stdout.write(`WA_INBOX_URL=${config.APP_URL}\nWA_INBOX_API_KEY=${key}\nWA_INBOX_WEBHOOK_SECRET=${secret}\n`);
+  },
+
+  // API key api.co.id untuk hari libur, dibaca dari stdin agar tidak muncul di riwayat terminal.
+  'holiday-key:set': async (database, _args, config) => {
+    const key = (await readStdinLine()).trim();
+    if (key.length < 8) throw new Error('API key kosong atau terlalu pendek.');
+    const deps = { config, database, bus: new EventBus() };
+    await saveBusinessHours(deps, await getBusinessHours(deps), key);
+    const result = await syncHolidays(deps);
+    console.log(result.error ? `API key disimpan, tetapi sinkron gagal: ${result.error}` : `API key disimpan; ${result.synced} hari libur disinkronkan.`);
   },
 
   'db:migrate': async ({ db }) => {

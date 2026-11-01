@@ -18,8 +18,8 @@ describe('users', () => {
     expect(user.email).toBe('admin@kpp.go.id');
     expect(user.name).toBe('Admin KPP');
     expect(user.passwordHash).toMatch(/^\$argon2id\$/);
-    expect(await verifyPassword(user.passwordHash, 'rahasia-panjang-1')).toBe(true);
-    expect(await verifyPassword(user.passwordHash, 'salah')).toBe(false);
+    expect(await verifyPassword(user.passwordHash!, 'rahasia-panjang-1')).toBe(true);
+    expect(await verifyPassword(user.passwordHash!, 'salah')).toBe(false);
   });
 
   it('rejects duplicate emails and weak passwords', async () => {

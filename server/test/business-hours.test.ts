@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { DEFAULT_BUSINESS_HOURS, describeSchedule, type BusinessHoursSettings } from '@wa/shared';
 import { holidays, messages } from '../src/db/schema';
 import { evaluate, localParts } from '../src/modules/business-hours/schedule';
+import { describeClosed, offHoursBlock } from '../src/modules/business-hours/service';
 import { WebhookWorker } from '../src/modules/processor/worker';
 import type { AppInstance } from '../src/types';
 import { APP_SECRET, seedAccount } from './helpers/account';
@@ -38,6 +39,16 @@ describe('schedule', () => {
 
   it('describes the schedule for {jam_kerja}', () => {
     expect(describeSchedule(S.days)).toBe('Senin–Kamis 07.30–16.00, Jumat 07.30–16.30');
+  });
+
+  it('groups a whole night into one off-hours period and explains why it is closed', () => {
+    const block = (iso: string) => offHoursBlock(S, localParts(wib(iso)));
+    expect(block('2026-11-02T17:00')).toBe('2026-11-02');
+    expect(block('2026-11-03T05:00')).toBe('2026-11-02');
+    expect(block('2026-11-07T05:00')).toBe('2026-11-07'); // Sabtu: hari libur, dihitung per tanggal
+    expect(describeClosed({ open: false, reason: 'holiday', holidayName: 'Maulid Nabi (belum pasti)', localTime: '' }, 'mon')).toBe('hari ini *libur Maulid Nabi*');
+    expect(describeClosed({ open: false, reason: 'day_off', holidayName: null, localTime: '' }, 'sun')).toBe('hari ini *hari libur akhir pekan*');
+    expect(describeClosed({ open: false, reason: 'outside_hours', holidayName: null, localTime: '' }, 'mon')).toBe('saat ini *di luar jam layanan*');
   });
 });
 

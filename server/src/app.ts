@@ -28,6 +28,7 @@ import { userRoutes } from './modules/users/routes';
 import { businessHoursRoutes } from './modules/business-hours/routes';
 import { pushRoutes } from './modules/push/routes';
 import { quickReplyRoutes } from './modules/quick-replies/routes';
+import { ssoRoutes } from './modules/sso/routes';
 import { emojiRoutes, stickerRoutes } from './modules/stickers/routes';
 import { registerSpa } from './spa';
 import type { AppDeps, AppInstance } from './types';
@@ -119,6 +120,7 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
   await app.register(pushRoutes, { prefix: '/api/push' });
   await app.register(apiV1Routes, { prefix: '/api/v1' });
   await app.register(webhookInRoutes, { prefix: '/webhooks' });
+  await app.register(ssoRoutes, { prefix: '/sso' });
   await registerSpa(app, opts.webDistDir);
 
   return app;

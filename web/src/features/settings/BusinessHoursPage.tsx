@@ -32,6 +32,7 @@ const AUTO_VARIABLES = [
   { key: 'salam', label: 'Selamat pagi/siang/sore/malam' },
   { key: 'nama', label: 'Nama kontak' },
   { key: 'jam_kerja', label: 'Ringkasan jam kerja' },
+  { key: 'keterangan', label: 'Alasan tutup, mis. "hari ini *libur Hari Raya Natal*"' },
 ];
 
 function formatHolidayDate(date: string) {
@@ -220,7 +221,11 @@ function Form({ data }: { data: BusinessHoursDTO }) {
           <div className="flex flex-col gap-2">
             <Label>Kapan dikirim</Label>
             {[
-              { value: 'daily', label: 'Sekali sehari per nomor', hint: 'Pesan berikutnya dari nomor yang sama di hari itu tidak dibalas lagi.' },
+              {
+                value: 'daily',
+                label: 'Sekali per periode di luar jam kerja',
+                hint: 'Satu malam (jam tutup sampai jam buka besok) atau satu hari libur dihitung satu periode per nomor.',
+              },
               { value: 'every', label: 'Setiap pesan masuk', hint: 'Pesan beruntun dalam 1 menit dari nomor yang sama hanya dibalas sekali.' },
             ].map((o) => (
               <label key={o.value} className="flex items-start gap-2 text-sm">

@@ -36,9 +36,10 @@ export async function authRoutes(app: AppInstance) {
       }
       attemptsByEmail.hit(email);
 
+      // Login dengan password hanya untuk akun lokal (darurat); pegawai masuk lewat kppbwi.app.
       const user = await db.query.users.findFirst({ where: eq(users.email, email) });
       const ok = await verifyPassword(user?.passwordHash ?? (await dummyHash), req.body.password);
-      if (!user || !ok || !user.isActive) {
+      if (!user || !ok || !user.isActive || user.authSource !== 'local') {
         await audit(db, { action: 'auth.login_failed', meta: { email }, ip: req.ip });
         throw invalidLogin();
       }
@@ -57,6 +58,12 @@ export async function authRoutes(app: AppInstance) {
     return { ok: true };
   });
 
+  // Halaman login: pegawai diarahkan ke portal kppbwi.app (SSO).
+  app.get('/options', async () => ({
+    portalLoginUrl: `${config.PORTAL_URL.replace(/\/$/, '')}/whatsapp-konsultasi/`,
+    ssoEnabled: !!config.PORTAL_SSO_SECRET,
+  }));
+
   app.get('/me', { preValidation: requireUserHook }, async (req) => {
     requireUser(req);
     const user = await db.query.users.findFirst({ where: eq(users.id, req.user.id) });
@@ -66,7 +73,8 @@ export async function authRoutes(app: AppInstance) {
   app.patch('/password', { preValidation: requireUserHook, schema: { body: changePasswordBody } }, async (req) => {
     requireUser(req);
     const user = await db.query.users.findFirst({ where: eq(users.id, req.user.id) });
-    if (!user || !(await verifyPassword(user.passwordHash, req.body.currentPassword))) {
+    if (!user?.passwordHash) throw new AppError(400, 'no_password', 'Akun ini masuk lewat kppbwi.app dan tidak memakai password.');
+    if (!(await verifyPassword(user.passwordHash, req.body.currentPassword))) {
       throw new AppError(400, 'wrong_password', 'Password lama salah.');
     }
     await setPassword(db, user.id, req.body.newPassword);

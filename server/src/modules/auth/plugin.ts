@@ -50,6 +50,7 @@ export const authPlugin = fp(async (app: AppInstance) => {
       .select({
         sessionId: sessions.id,
         expiresAt: sessions.expiresAt,
+        maxExpiresAt: sessions.maxExpiresAt,
         id: users.id,
         name: users.name,
         email: users.email,
@@ -66,26 +67,34 @@ export const authPlugin = fp(async (app: AppInstance) => {
     req.user = { id: row.id, name: row.name, email: row.email, role: row.role };
     req.sessionTokenHash = tokenHash;
 
-    if (row.expiresAt.getTime() - now.getTime() < SESSION_TTL_MS - RENEW_AFTER_MS) {
-      const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
-      await database.db.update(sessions).set({ expiresAt }).where(eq(sessions.id, row.sessionId));
-      setSessionCookie(reply, token, expiresAt, config.secureCookies);
+    const renewed = sessionExpiry(now, row.maxExpiresAt);
+    if (renewed.getTime() - row.expiresAt.getTime() > RENEW_AFTER_MS) {
+      await database.db.update(sessions).set({ expiresAt: renewed }).where(eq(sessions.id, row.sessionId));
+      setSessionCookie(reply, token, renewed, config.secureCookies);
     }
   });
 });
+
+/** Sesi geser 12 jam, tetapi tidak pernah melewati batas akhir (sesi SSO berakhir bersama sesi portal). */
+function sessionExpiry(now: Date, max: Date | null): Date {
+  const sliding = now.getTime() + SESSION_TTL_MS;
+  return new Date(max ? Math.min(sliding, max.getTime()) : sliding);
+}
 
 export async function startSession(
   app: AppInstance,
   req: FastifyRequest,
   reply: FastifyReply,
   userId: number,
+  maxExpiresAt: Date | null = null,
 ): Promise<void> {
   const token = randomToken(32);
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const expiresAt = sessionExpiry(new Date(), maxExpiresAt);
   await app.deps.database.db.insert(sessions).values({
     userId,
     tokenHash: sha256Hex(token),
     expiresAt,
+    maxExpiresAt,
     ip: req.ip,
     userAgent: (req.headers['user-agent'] ?? '').slice(0, 255),
   });

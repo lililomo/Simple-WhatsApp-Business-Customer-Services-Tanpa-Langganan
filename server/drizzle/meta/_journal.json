@@ -22,6 +22,13 @@
       "when": 1793545964814,
       "tag": "0002_shared_library_business_hours_push",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1793557111197,
+      "tag": "0003_portal_sso",
+      "breakpoints": true
     }
   ]
 }

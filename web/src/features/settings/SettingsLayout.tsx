@@ -1,13 +1,12 @@
 import { NavLink, Outlet } from 'react-router';
-import { Clock, KeyRound, Palette, Phone, User, Users, Zap } from 'lucide-react';
+import { Clock, KeyRound, Palette, Phone, Zap } from 'lucide-react';
 import { useMe } from '@/features/auth/hooks';
 import { cn } from '@/lib/utils';
 
+// Profil & pengguna dikelola di portal kppbwi.app (menu Akses Layanan WhatsApp WP).
 const items = [
-  { to: '/settings/profile', label: 'Profil', icon: User, admin: false },
   { to: '/settings/appearance', label: 'Tampilan & notifikasi', icon: Palette, admin: false },
   { to: '/settings/quick-replies', label: 'Balasan cepat', icon: Zap, admin: false },
-  { to: '/settings/users', label: 'Pengguna', icon: Users, admin: true },
   { to: '/settings/whatsapp', label: 'WhatsApp', icon: Phone, admin: true },
   { to: '/settings/business-hours', label: 'Jam kerja', icon: Clock, admin: true },
   { to: '/settings/api', label: 'API & Webhook', icon: KeyRound, admin: true },

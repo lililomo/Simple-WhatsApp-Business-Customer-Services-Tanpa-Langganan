@@ -7,7 +7,9 @@ import {
   greetingFor,
   type BusinessHoursDTO,
   type BusinessHoursSettings,
+  type BusinessHoursStatus,
   type HolidayDTO,
+  type Weekday,
 } from '@wa/shared';
 import { autoReplyLog, holidays } from '../../db/schema';
 import { decrypt, encrypt } from '../../lib/crypto';
@@ -48,7 +50,7 @@ export async function saveBusinessHours(
   deps: AppDeps,
   settings: BusinessHoursSettings,
   apiKey: string | null | undefined,
-  userId: number,
+  userId?: number,
 ): Promise<void> {
   const { db } = deps.database;
   await setSetting(db, SETTINGS_KEY, settings, userId);
@@ -154,6 +156,28 @@ export async function businessHoursDTO(deps: AppDeps, now = new Date()): Promise
 }
 
 /**
+ * Periode di luar jam kerja tempat sebuah waktu berada, untuk mode "sekali per periode". Dini hari sebelum
+ * jam mulai ikut malam sebelumnya, sehingga pesan pukul 17.00 dan 05.00 keesokan harinya cukup dibalas sekali.
+ */
+export function offHoursBlock(settings: BusinessHoursSettings, local: { day: string; weekday: Weekday; time: string }): string {
+  const today = settings.days[local.weekday];
+  if (!today.active || local.time >= today.start) return local.day;
+  const prev = new Date(`${local.day}T00:00:00Z`);
+  prev.setUTCDate(prev.getUTCDate() - 1);
+  return prev.toISOString().slice(0, 10);
+}
+
+/** Isi variabel {keterangan}, mis. "hari ini *libur Hari Raya Natal*" atau "saat ini *di luar jam layanan*". */
+export function describeClosed(status: BusinessHoursStatus, weekday: Weekday): string {
+  if (status.reason === 'holiday') {
+    const name = (status.holidayName ?? '').replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+    return name ? `hari ini *libur ${name}*` : 'hari ini *hari libur*';
+  }
+  if (status.reason === 'day_off') return weekday === 'sat' || weekday === 'sun' ? 'hari ini *hari libur akhir pekan*' : 'hari ini *hari libur*';
+  return 'saat ini *di luar jam layanan*';
+}
+
+/**
  * Balas otomatis pesan yang masuk di luar jam kerja. Dipanggil sekali per pesan masuk baru (bukan saat
  * webhook diproses ulang), dan dicatat sebelum dikirim agar tidak pernah terkirim dua kali.
  */
@@ -167,8 +191,10 @@ export async function maybeAutoReply(
   const settings = await getBusinessHours(deps);
   const { enabled, message, mode } = settings.autoReply;
   if (!enabled || !message.trim()) return false;
-  const { day } = localParts(input.at);
-  if (evaluate(settings, await holidaysOn(deps, day), input.at).open) return false;
+  const local = localParts(input.at);
+  const status = evaluate(settings, await holidaysOn(deps, local.day), input.at);
+  if (status.open) return false;
+  const block = offHoursBlock(settings, local);
 
   const { db } = deps.database;
   const [last] = await db
@@ -177,13 +203,14 @@ export async function maybeAutoReply(
     .where(eq(autoReplyLog.contactId, input.contactId))
     .orderBy(desc(autoReplyLog.id))
     .limit(1);
-  if (last && (mode === 'daily' ? last.day === day : now.getTime() - last.createdAt.getTime() < AUTO_REPLY_COOLDOWN_MS)) return false;
+  if (last && (mode === 'daily' ? last.day === block : now.getTime() - last.createdAt.getTime() < AUTO_REPLY_COOLDOWN_MS)) return false;
 
-  const [entry] = await db.insert(autoReplyLog).values({ contactId: input.contactId, day });
+  const [entry] = await db.insert(autoReplyLog).values({ contactId: input.contactId, day: block });
   const text = fillVariables(message, {
     salam: greetingFor(input.at),
     nama: input.contactName,
     jam_kerja: describeSchedule(settings.days),
+    keterangan: describeClosed(status, local.weekday),
   });
   try {
     const result = await sendToConversation(deps, input.conversationId, textSpec(text), { system: 'auto_reply' });

@@ -32,7 +32,7 @@ export type AppInstance = FastifyInstance<
 export interface SessionUser {
   id: number;
   name: string;
-  email: string;
+  email: string | null;
   role: Role;
 }
 

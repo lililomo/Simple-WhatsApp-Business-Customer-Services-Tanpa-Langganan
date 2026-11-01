@@ -15,6 +15,10 @@ const envSchema = z.object({
   API_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(60),
   SEND_READ_RECEIPTS: z.stringbool().default(true),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  /** Portal kppbwi.app: pegawai masuk lewat portal (SSO), bukan login tersendiri. */
+  PORTAL_URL: z.url().default('https://kppbwi.app'),
+  /** Kunci HMAC bersama dengan portal (tiket SSO + panggilan antarserver). Kosong = SSO mati. */
+  PORTAL_SSO_SECRET: z.string().min(32, 'PORTAL_SSO_SECRET minimal 32 karakter').optional(),
 });
 
 export type Config = z.infer<typeof envSchema> & { appKey: Buffer; secureCookies: boolean };

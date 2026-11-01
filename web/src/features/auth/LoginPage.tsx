@@ -1,31 +1,59 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
-import { MessagesSquare, ShieldCheck, Zap } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ExternalLink, MessagesSquare, ShieldCheck, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert } from '@/components/ui/misc';
-import { errorMessage } from '@/lib/api';
+import { api, errorMessage } from '@/lib/api';
 import { useLogin, useMe } from './hooks';
 
 function safeNext(next: string | null): string {
   return next && next.startsWith('/') && !next.startsWith('//') ? next : '/chats';
 }
 
-export function LoginPage() {
-  const [params] = useSearchParams();
+/** Login darurat dengan password, hanya untuk akun lokal (mis. saat SIKKA atau portal bermasalah). */
+function EmergencyLogin({ next }: { next: string }) {
   const navigate = useNavigate();
-  const me = useMe();
   const login = useLogin();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  if (me.data) return <Navigate to={safeNext(params.get('next'))} replace />;
-
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    login.mutate({ email, password }, { onSuccess: () => navigate(safeNext(params.get('next')), { replace: true }) });
+    login.mutate({ email, password }, { onSuccess: () => navigate(next, { replace: true }) });
   };
+  return (
+    <form onSubmit={submit} className="mt-6 flex flex-col gap-4 rounded-2xl border bg-card p-6 shadow-sm">
+      <div className="text-sm font-semibold">Login darurat (akun lokal)</div>
+      {login.isError && <Alert variant="destructive">{errorMessage(login.error)}</Alert>}
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="password">Password</Label>
+        <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+      </div>
+      <Button type="submit" variant="outline" disabled={login.isPending}>
+        {login.isPending ? 'Memproses…' : 'Masuk'}
+      </Button>
+    </form>
+  );
+}
+
+export function LoginPage() {
+  const [params] = useSearchParams();
+  const me = useMe();
+  const options = useQuery({
+    queryKey: ['auth-options'],
+    queryFn: () => api<{ portalLoginUrl: string; ssoEnabled: boolean }>('/api/auth/options'),
+    staleTime: Infinity,
+  });
+  const next = safeNext(params.get('next'));
+  const emergency = params.has('darurat') || options.data?.ssoEnabled === false;
+
+  if (me.data) return <Navigate to={next} replace />;
 
   return (
     <main className="grid min-h-svh bg-background lg:grid-cols-[1.1fr_1fr]">
@@ -51,7 +79,7 @@ export function LoginPage() {
               <Zap className="size-4 text-[#ffc91b]" /> Balasan cepat, stiker, dan template untuk seluruh petugas
             </li>
             <li className="flex items-center gap-3">
-              <ShieldCheck className="size-4 text-[#ffc91b]" /> Terhubung langsung ke WhatsApp Business Cloud API
+              <ShieldCheck className="size-4 text-[#ffc91b]" /> Masuk dengan akun SIKKA lewat portal kppbwi.app
             </li>
           </ul>
         </div>
@@ -70,21 +98,17 @@ export function LoginPage() {
             </div>
           </div>
           <h2 className="text-2xl font-bold tracking-tight">Masuk</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Gunakan akun petugas yang diberikan admin.</p>
-          <form onSubmit={submit} className="mt-6 flex flex-col gap-4 rounded-2xl border bg-card p-6 shadow-sm">
-            {login.isError && <Alert variant="destructive">{errorMessage(login.error)}</Alert>}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
-            <Button type="submit" size="lg" disabled={login.isPending} className="mt-1">
-              {login.isPending ? 'Memproses…' : 'Masuk'}
+          <p className="mt-1 text-sm text-muted-foreground">
+            WA Inbox memakai sesi portal kppbwi.app. Masuk ke portal, lalu klik <b>WhatsApp Konsultasi WP</b>.
+          </p>
+          {options.data?.ssoEnabled !== false && (
+            <Button asChild size="lg" className="mt-6 w-full">
+              <a href={options.data?.portalLoginUrl ?? 'https://kppbwi.app/whatsapp-konsultasi/'}>
+                Masuk lewat kppbwi.app <ExternalLink />
+              </a>
             </Button>
-          </form>
+          )}
+          {emergency && <EmergencyLogin next={next} />}
         </div>
       </section>
     </main>

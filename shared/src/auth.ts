@@ -8,7 +8,11 @@ export type Role = z.infer<typeof roleSchema>;
 export interface UserDTO {
   id: string;
   name: string;
-  email: string;
+  /** Hanya akun lokal (login darurat); pegawai portal dikenali lewat NIP. */
+  email: string | null;
+  nip: string | null;
+  seksi: string | null;
+  authSource: 'local' | 'portal';
   role: Role;
   isActive: boolean;
   lastLoginAt: string | null;

@@ -92,8 +92,9 @@ export function AppLayout() {
               <DropdownMenuLabel>
                 <div className="truncate">{user?.name}</div>
                 <div className="truncate text-xs font-normal text-muted-foreground">
-                  {user?.email} · {user?.role === 'admin' ? 'Admin' : 'Petugas'}
+                  {user?.nip ? `NIP ${user.nip}` : user?.email} · {user?.role === 'admin' ? 'Admin' : 'Petugas'}
                 </div>
+                {user?.seksi && <div className="truncate text-xs font-normal text-muted-foreground">{user.seksi}</div>}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>

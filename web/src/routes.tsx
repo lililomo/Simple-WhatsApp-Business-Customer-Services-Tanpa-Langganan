@@ -9,9 +9,7 @@ import { ApiSettingsPage } from './features/settings/ApiSettingsPage';
 import { AppearancePage } from './features/settings/AppearancePage';
 import { BusinessHoursPage } from './features/settings/BusinessHoursPage';
 import { QuickRepliesPage } from './features/settings/QuickRepliesPage';
-import { ProfilePage } from './features/settings/ProfilePage';
 import { SettingsLayout } from './features/settings/SettingsLayout';
-import { UsersPage } from './features/settings/UsersPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -30,8 +28,7 @@ export const router = createBrowserRouter([
         path: 'settings',
         element: <SettingsLayout />,
         children: [
-          { index: true, element: <Navigate to="/settings/profile" replace /> },
-          { path: 'profile', element: <ProfilePage /> },
+          { index: true, element: <Navigate to="/settings/appearance" replace /> },
           { path: 'appearance', element: <AppearancePage /> },
           { path: 'quick-replies', element: <QuickRepliesPage /> },
           {
@@ -39,14 +36,6 @@ export const router = createBrowserRouter([
             element: (
               <RequireAuth admin>
                 <BusinessHoursPage />
-              </RequireAuth>
-            ),
-          },
-          {
-            path: 'users',
-            element: (
-              <RequireAuth admin>
-                <UsersPage />
               </RequireAuth>
             ),
           },
