@@ -7,14 +7,21 @@
     "dev": "tsx watch --env-file-if-exists=../.env src/index.ts",
     "build": "tsup",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "cli": "tsx --env-file-if-exists=../.env src/cli.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=../.env src/cli.ts db:migrate"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.2.2",
     "@wa/shared": "*",
+    "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.7",
+    "mysql2": "^3.24.6",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "drizzle-kit": "^0.31.11",
     "tsup": "^9.0.0",
     "tsx": "^4.23.15",
     "vitest": "^5.0.5"

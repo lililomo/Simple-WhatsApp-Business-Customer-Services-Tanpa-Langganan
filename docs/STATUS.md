@@ -6,7 +6,11 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 
 - **Fase:** pembangunan fase 1.
 - **Selesai:** Prompt 0 (fondasi repo: npm workspaces shared/server/web, TypeScript 6.0, ESLint 10, Vitest 5, Fastify 5 `/healthz`, Vite 8 + React 19 + Tailwind 4, komponen UI bergaya shadcn di atas `radix-ui`).
-- **Langkah berikutnya:** Prompt 1 di [PROMPTS.md](PROMPTS.md).
+- **Selesai:** Prompt 1 (config zod, skema Drizzle 14 tabel + migrasi `server/drizzle/0000_init.sql`, AES-256-GCM, argon2id, CLI `db:migrate` & `user:create`, test DB).
+  - Database `wainbox_dev` dan `wainbox_test` dibuat lewat aaPanel. Akses dari laptop lewat tunnel `ssh -N -L 3307:127.0.0.1:3306 <host>`; kredensial hanya di `.env` lokal.
+  - Kolom JSON memakai tipe kustom `jsonText` karena MariaDB menyimpan JSON sebagai LONGTEXT dan kolom json bawaan Drizzle tidak mem-parse.
+  - Admin dev lokal: `DEV_ADMIN_EMAIL`/`DEV_ADMIN_PASSWORD` di `.env` lokal.
+- **Langkah berikutnya:** Prompt 2 di [PROMPTS.md](PROMPTS.md).
 - Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
 - **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
 
