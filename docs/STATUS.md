@@ -10,7 +10,8 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
   - Database `wainbox_dev` dan `wainbox_test` dibuat lewat aaPanel. Akses dari laptop lewat tunnel `ssh -N -L 3307:127.0.0.1:3306 <host>`; kredensial hanya di `.env` lokal.
   - Kolom JSON memakai tipe kustom `jsonText` karena MariaDB menyimpan JSON sebagai LONGTEXT dan kolom json bawaan Drizzle tidak mem-parse.
   - Admin dev lokal: `DEV_ADMIN_EMAIL`/`DEV_ADMIN_PASSWORD` di `.env` lokal.
-- **Langkah berikutnya:** Prompt 2 di [PROMPTS.md](PROMPTS.md).
+- **Selesai:** Prompt 2 (sesi cookie `wai_sess` + tabel sessions, login/logout/me/ganti password, rate limit login per IP & per email, cek Origin untuk request non-GET, kelola pengguna khusus admin dengan proteksi admin terakhir, audit log; web: login, layout rail, pengaturan Profil & Pengguna, tema gelap/terang). Diuji di browser lokal.
+- **Langkah berikutnya:** Prompt 3 di [PROMPTS.md](PROMPTS.md).
 - Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
 - **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
 
