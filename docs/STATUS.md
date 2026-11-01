@@ -16,7 +16,7 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 | Node project aaPanel `wa_kppbwi_app` (port 3210, user www, auto-start) | Aktif (placeholder) |
 | Database MariaDB `wainbox` (dibuat lewat aaPanel) | Kosong, kredensial di `.env` server |
 | Folder produksi = clone repo ini (`main`), deploy key read-only | Aktif |
-| Cron aaPanel "WA Inbox – Auto deploy" (tiap 2 menit) | Aktif |
+| Cron aaPanel "WA Inbox – Auto deploy" (tiap 2 menit) | Aktif, log di `/www/wwwlogs/wa_kppbwi_app-deploy.log` |
 | Clone dev di server (deploy key read-write) | Siap |
 | Cloud environment Claude Code | **Belum**, ikuti [CLOUD.md](CLOUD.md) |
 | Meta App + system user token | **Belum**, ikuti SPEC §14 (Prompt 11) |
