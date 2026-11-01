@@ -30,7 +30,10 @@ log() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG"; }
 exec 9>"/tmp/${PROJECT_NAME}-deploy.lock"
 flock -n 9 || { echo "Deploy lain sedang berjalan."; exit 1; }
 
-as_app() { runuser -u "$RUN_USER" -- env PATH="$PATH" HOME="$APP_HOME" APP_VERSION="$SHA" "$@"; }
+# Cache npm global aaPanel dimiliki root, jadi build sebagai www memakai cache sendiri.
+as_app() {
+  runuser -u "$RUN_USER" -- env PATH="$PATH" HOME="$APP_HOME" npm_config_cache="$APP_HOME/.npm" APP_VERSION="$SHA" "$@"
+}
 
 # Panggilan aaPanel bisa diganti stub saat uji sandbox (AAPANEL_STUB=<skrip>).
 aapanel() {
