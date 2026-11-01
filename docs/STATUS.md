@@ -4,7 +4,29 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 
 ## Posisi sekarang
 
-- **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih berjalan paralel.
+- **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih menerima pesan di sisinya sendiri, tetapi portal kppbwi.app tidak lagi memakainya.
+- **Selesai (2 Nov 2026, dini hari):** login lewat portal kppbwi.app (SPEC §16).
+  - **WA Inbox:**
+    - SSO tiket HMAC sekali pakai, sesi ikut batas sesi portal;
+    - `/sso/revoke` (logout/cabut akses);
+    - `/sso/stats` (statistik bulanan per petugas tanpa tombol selesai);
+    - login darurat hanya akun lokal; menu Profil/Pengguna dihapus;
+    - balasan otomatis: variabel `{keterangan}` dan "sekali per periode";
+    - CLI `portal:provision` & `holiday-key:set`;
+    - migrasi `0003`.
+  - **Portal kppbwi.app** (cadangan berkas lama di `/www/backup/kppbwi.app-wa-layanan-20261102-013515`):
+    - menu baru: *WhatsApp Konsultasi WP* (Pelayanan + pintasan beranda), *Statistik Layanan WhatsApp* (Pelayanan), *Akses Layanan WhatsApp WP* (Administrasi);
+    - tabel `wa-layanan-akses`; migrasi `database/migrations/006-wa-layanan.php`;
+    - logout portal mengakhiri sesi WA Inbox;
+    - CSP `form-action` ditambah `https://wa.kppbwi.app`.
+  - **Kirimdev di portal dinonaktifkan** (`KIRIMDEV_AKTIF=false`):
+    - webhook billing & luar jam kerja dari Kirimdev dijawab tanpa diproses;
+    - balasan resmi (billing, bot) dikirim lewat API v1 WA Inbox;
+    - pesan masuk `#REQUEST_BILLING#` datang lewat webhook WA Inbox → `/WhatsApp/webhook/wa-inbox`.
+  - API key hari libur portal (api.co.id) dipakai juga oleh WA Inbox: 56 hari libur tersinkron.
+  - **Teruji di produksi:** tombol beranda, tiket SSO (303, peran Admin, NIP & seksi), tiket dipakai ulang ditolak, halaman statistik & akses 200, logout portal memutus sesi WA Inbox, tanda tangan webhook WA Inbox → portal (sah 200, palsu 401).
+  - **Belum teruji dengan pesan nyata:** permintaan `#REQUEST_BILLING#` dari HP dan pengiriman kode billing lewat WA Inbox.
+  - **Perlu tindakan pemilik:** nyalakan balasan otomatis WA Inbox (Pengaturan → Jam kerja). Sejak Kirimdev portal dimatikan, balasan luar jam kerja **tidak ada** sampai fitur ini dinyalakan.
 - **Selesai (2 Nov 2026):** paket fitur permintaan pemilik (SPEC §5, §7, §10, §15). Migrasi `0002`.
   1. Balasan cepat lokal bersama: menu ⚡ dan pemicu `/` di kotak balas, variabel `{salam}`/`{nama}`/`{petugas}`, halaman Pengaturan → Balasan cepat.
   2. Panel emoji & stiker ala WhatsApp Web:

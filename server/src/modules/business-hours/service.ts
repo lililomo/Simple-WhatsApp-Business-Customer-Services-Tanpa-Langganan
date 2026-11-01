@@ -27,8 +27,8 @@ const HOLIDAY_API = 'https://use.api.co.id/holidays/indonesia/';
 const AUTO_REPLY_MAX_AGE_MS = 15 * 60 * 1000;
 // Mode "setiap pesan": rentetan pesan beruntun dari nomor yang sama cukup dibalas sekali.
 const AUTO_REPLY_COOLDOWN_MS = 60 * 1000;
-// Jenis pesan masuk yang tidak dibalas otomatis.
-const NO_AUTO_REPLY_TYPES = new Set(['reaction', 'system', 'unsupported']);
+// Jenis pesan masuk yang tidak dibalas otomatis (sama dengan saringan LuarJamKerja portal kppbwi.app).
+const NO_AUTO_REPLY_TYPES = new Set(['reaction', 'system', 'unsupported', 'ephemeral', 'order', 'request_welcome']);
 
 interface SyncState {
   fetchedAt: string | null;

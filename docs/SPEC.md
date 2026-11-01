@@ -613,9 +613,36 @@ Hasil go-live 1 Nov 2026: [GO-LIVE.md](GO-LIVE.md).
 - **Balasan otomatis:**
   - dikirim prosesor webhook untuk pesan masuk *baru* (bukan reaksi/system/unsupported) yang waktunya di luar jam kerja;
   - pesan yang sudah lebih dari 15 menit (antrean tertunda) tidak dibalas;
-  - mode `daily`: sekali per nomor per tanggal WIB;
+  - mode `daily`: sekali per nomor per periode di luar jam kerja (dini hari sebelum jam buka ikut malam sebelumnya; hari libur per tanggal);
   - mode `every`: setiap pesan, dengan jeda minimal 1 menit per nomor agar rentetan pesan cukup dibalas sekali;
   - dicatat di `auto_reply_log` *sebelum* dikirim dan tidak pernah di-retry, sehingga tidak pernah terkirim ganda;
-  - variabel: `{salam}`, `{nama}`, `{jam_kerja}`;
+  - variabel: `{salam}`, `{nama}`, `{jam_kerja}`, `{keterangan}` (mis. "hari ini *libur Hari Raya Natal*");
+  - tidak membalas reaksi, system, unsupported, ephemeral, order, request_welcome;
   - pesan tampil di inbox dengan pengirim "Balasan otomatis";
   - selama Kirimdev masih aktif dengan balasan otomatisnya sendiri, hanya satu yang boleh dinyalakan.
+
+## 16. Masuk lewat portal kppbwi.app (SSO) & statistik
+
+- **Login:** pegawai tidak punya login tersendiri.
+  - Tombol **WhatsApp Konsultasi WP** di kppbwi.app (`/whatsapp-konsultasi/`) membuat tiket `base64url(JSON).base64url(HMAC-SHA256)` dengan kunci bersama `PORTAL_SSO_SECRET` (portal: `WA_INBOX_SSO_SECRET`).
+  - Tiket berlaku 60 detik dan sekali pakai (`sso_nonces`). Isinya NIP (IP 9 digit), nama, seksi, jabatan, peran, dan `sesiBerakhir` = batas mutlak sesi portal.
+  - Tiket dikirim lewat form POST ke `POST /sso/portal`, lalu pengguna dibuat/diperbarui berdasarkan NIP (`auth_source = portal`).
+  - Sesi WA Inbox geser 12 jam, tetapi `max_expires_at` = `sesiBerakhir`.
+- **Hak akses** (diatur di portal, tabel `wa-layanan-akses` milik portal):
+  - Seksi Pelayanan otomatis berakses; seksi lain per pegawai;
+  - `ADMIN` = Admin WA Inbox; admin utama portal (`KANTOR_NIP_ADMIN`) selalu Admin;
+  - menu portal (`menu-role`) disinkronkan dari tabel itu.
+- **Panggilan antarserver bertanda tangan** (header `X-Portal-Timestamp` + `X-Portal-Signature` = hex HMAC(secret, `{ts}.{METHOD} {path}.{body}`), toleransi 5 menit):
+  - `POST /sso/revoke {nip, nonaktifkan}`: dipanggil saat logout portal dan saat akses diubah;
+  - `GET /sso/stats?month=YYYY-MM`: halaman Statistik Layanan WhatsApp di portal.
+- **Login darurat:** password untuk akun lokal saja (`/login?darurat`). Menu Profil dan Pengguna dihapus.
+- **Statistik** (bulan WIB):
+  - *pertanyaan* = pesan masuk pertama setelah balasan terakhir; dikreditkan ke petugas yang pertama membalas, dan selisihnya = waktu tanggap;
+  - balasan otomatis tidak menutup pertanyaan;
+  - pesan via API (mis. kode billing dari portal) menutupnya sebagai "dijawab sistem";
+  - jawaban hingga 3 hari setelah akhir bulan tetap dihitung.
+- **Pengganti Kirimdev di portal:**
+  - `WaWorker` mengirim baris antrean resmi lewat API v1 (key "Portal kppbwi.app", `Idempotency-Key: wa-antrian-<id>`);
+  - pesan masuk sampai ke portal lewat webhook keluar `message.received` → `https://kppbwi.app/WhatsApp/webhook/wa-inbox`;
+  - hanya pesan berisi `#REQUEST_BILLING#` yang diteruskan ke billing; jendela 24 jam portal disegarkan untuk setiap pesan;
+  - provisioning: `bin/cli.sh portal:provision` (mencetak baris .env portal, dialirkan langsung ke berkas).
