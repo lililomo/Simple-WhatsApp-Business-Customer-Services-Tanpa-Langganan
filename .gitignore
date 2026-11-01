@@ -3,19 +3,12 @@ dist/
 coverage/
 *.log
 
-# Rahasia & konfigurasi per server (tidak pernah di-commit)
+# Rahasia & konfigurasi lokal (tidak pernah di-commit)
 .env
 .env.*
 !.env.example
-.deploy.env
-.deploy-state/
 DEPLOYMENT.local.md
+deploy/deploy.local.env
 
-# Data aplikasi di server
+# Data aplikasi
 storage/
-
-# Dibuat aaPanel / Let's Encrypt di folder produksi
-.well-known/
-.htaccess
-.user.ini
-yarn.lock

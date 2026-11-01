@@ -19,7 +19,6 @@ Penerapan pertama: layanan WhatsApp KPP Pratama Banyuwangi (`wa.kppbwi.app`).
 | [docs/PRD.md](docs/PRD.md) | Kebutuhan produk |
 | [docs/SPEC.md](docs/SPEC.md) | Desain teknis |
 | [docs/PROMPTS.md](docs/PROMPTS.md) | Urutan pembangunan dengan Claude Code |
-| [docs/CLOUD.md](docs/CLOUD.md) | Bekerja di sesi cloud Claude Code |
 | [docs/STATUS.md](docs/STATUS.md) | Progres & keputusan |
 
 Stack: Node.js 24, TypeScript, Fastify, React, MariaDB, dideploy sebagai Node project aaPanel.

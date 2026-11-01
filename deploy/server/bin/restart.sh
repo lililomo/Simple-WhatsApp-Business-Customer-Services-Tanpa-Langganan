@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Restart Node project lewat aaPanel supaya status di panel tetap sinkron.
-#   bash deploy/aapanel/restart.sh <nama_project_aapanel>
+#   bash restart.sh <nama_project_aapanel>
 set -euo pipefail
 PROJECT_NAME="${1:?pakai: restart.sh <nama_project_aapanel>}"
 

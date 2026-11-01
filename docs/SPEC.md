@@ -85,20 +85,17 @@ Gunakan versi stabil terbaru dari setiap paket saat implementasi, dan kunci vers
 │   └── test/                   unit + fixtures/meta/*.json
 ├── web/src/                    app/, pages/, components/, lib/api.ts, lib/sse.ts
 ├── scripts/
+│   ├── deploy.sh               deploy dari laptop ke server lewat SSH (Git Bash)
 │   └── simulate-webhook.ts     kirim payload fixture bertanda tangan ke server lokal
-├── deploy/
-│   ├── aapanel/                auto-deploy.sh, restart.sh, cli.sh, watchdog.sh, deploy.env.example
-│   └── placeholder/server.js   halaman sementara sebelum aplikasi pertama aktif
-├── .github/workflows/ci.yml    lint, typecheck, test (service MariaDB 10.11), build untuk setiap PR
-└── .claude/settings.json       hook SessionStart untuk sesi cloud (Node 24 + Docker + MariaDB test)
+└── deploy/
+    ├── deploy.local.env.example  contoh host & folder tujuan (salinan aslinya tidak di-commit)
+    └── server/                 activate.sh, bin/cli.sh, bin/restart.sh, bin/watchdog.sh
 ```
 
 ## 4. Konfigurasi (`.env`)
 
 **[server: sudah]** File `/www/wwwroot/wa.kppbwi.app/.env` (owner `www`, mode 600) sudah berisi:
 `NODE_ENV, PORT=3210, APP_URL, DATABASE_URL, APP_KEY, SESSION_SECRET, STORAGE_DIR, GRAPH_API_VERSION=v26.0, TZ=Asia/Jakarta`.
-Konfigurasi auto-deploy ada di file terpisah `.deploy.env` (contoh: `deploy/aapanel/deploy.env.example`).
-
 Variabel tambahan (opsional, dengan default):
 
 | Variabel | Default | Keterangan |
@@ -419,66 +416,70 @@ Notifikasi: `Notification` API + suara singkat (`/sounds/incoming.mp3`), hanya s
 |---|---|
 | Panel | aaPanel 8, web server **Apache** (bukan Nginx) |
 | Node project aaPanel | **`wa_kppbwi_app`**, folder `/www/wwwroot/wa.kppbwi.app`, port **3210** (hanya 127.0.0.1), run user `www`, auto-start, Node `v24.14.0` (Node version manager aaPanel), batas memori 1024 MB |
-| Perintah jalan | Saat ini `node deploy/placeholder/server.js`. Mulai Prompt 3: `node --env-file=.env server/dist/index.js` |
+| Perintah jalan | Saat ini `node placeholder/server.js`. Deploy pertama mengubahnya otomatis menjadi `node --env-file=.env app/server/dist/index.js` |
 | Domain & SSL | `wa.kppbwi.app`, Let's Encrypt via aaPanel (diperpanjang otomatis oleh cron bawaan aaPanel), Force HTTPS |
 | Database | MariaDB 10.11 milik aaPanel, DB **`wainbox`**, user `wainbox` (akses 127.0.0.1); kredensial di `.env` server |
-| Lainnya | Redis lokal tersedia (belum dipakai). **Disk terbatas** (sisa ±11 GB): batasi log, backup, dan retensi media |
+| Lainnya | Redis lokal tersedia (belum dipakai). **Disk terbatas** (sisa ±11 GB): simpan maksimal 3 release, batasi log, backup, dan retensi media |
 
-Akses SSH, alamat server, dan catatan site lain di server ada di `DEPLOYMENT.local.md` (tidak di-commit; ada di laptop admin dan di server).
+Akses SSH, alamat server, dan catatan site lain ada di `DEPLOYMENT.local.md` (tidak di-commit, hanya di laptop admin).
 
-### 12.2 Alur kode
+### 12.2 Tata letak di server
 
 ```
- Sesi cloud Claude Code ─┐
- Laptop ─────────────────┼─► GitHub  main = produksi ──► server: cron aaPanel "WA Inbox – Auto deploy"
- Clone dev di server ────┘   (PR / push)                  tiap 2 menit → auto-deploy.sh
+/www/wwwroot/wa.kppbwi.app/              (owner www, BUKAN git clone)
+├── .env                                 dipertahankan antar deploy
+├── storage/media/                       dipertahankan
+├── releases/<YYYYmmdd-HHMMSS>-<sha7>/   kode + hasil build per deploy (simpan 3 terbaru)
+├── app -> releases/<aktif>              symlink yang dijalankan aaPanel
+├── bin/                                 cli.sh, restart.sh, watchdog.sh (disalin dari deploy/server/bin)
+└── placeholder/server.js                halaman sementara sebelum deploy pertama
 ```
 
-- **Folder produksi = clone repo** (branch `main`, remote memakai deploy key *read-only*). Folder ini hanya menerima pull dan tidak pernah diedit langsung. Auto-deploy menolak jalan jika ada perubahan lokal.
-- **Clone dev di server** (deploy key *read-write*): untuk pekerjaan yang butuh aaPanel atau uji Meta asli. Hasilnya di-push ke GitHub seperti biasa. Lokasinya dicatat di `DEPLOYMENT.local.md`.
-- File di folder produksi yang tidak di-commit:
-  - `.env`, `.deploy.env`, `.deploy-state/`, `DEPLOYMENT.local.md`, `storage/`;
-  - `.well-known/` dan `.htaccess` buatan aaPanel.
+### 12.3 Deploy dari laptop (`scripts/deploy.sh`, dibuat di Prompt 3)
 
-### 12.3 Auto-deploy (`deploy/aapanel/auto-deploy.sh`)
+Pengembangan dan deploy dilakukan dari laptop, oleh sesi Claude Code di folder proyek. Produksi hanya berubah saat `scripts/deploy.sh` dijalankan. Tidak ada auto-deploy.
 
-**[server: sudah]** Cron aaPanel "WA Inbox – Auto deploy" berjalan tiap 2 menit:
-`bash /www/wwwroot/wa.kppbwi.app/deploy/aapanel/auto-deploy.sh`
+1. **Di laptop:** working tree bersih, lalu `npm run check` (lint, typecheck, test) harus hijau. Jika tidak, deploy dibatalkan.
+2. `git archive HEAD | ssh <host> "tar -x -C <APP_DIR>/releases/<rel>"`. Host dan folder dibaca dari `deploy/deploy.local.env` (tidak di-commit).
+3. `ssh <host> "bash <APP_DIR>/releases/<rel>/deploy/server/activate.sh <rel> <sha>"`. Di server, `activate.sh`:
+   1. Mengunci proses dengan `flock`. Deskriptor kunci ditutup saat memanggil restart (`9>&-`), agar proses Node tidak mewarisi kunci.
+   2. Menaruh Node 24 di PATH, lalu menjalankan `npm ci` dan `npm run build` sebagai `www` di folder release, dengan `APP_VERSION=<sha>`. Folder release tidak punya `.git`, jadi versi diberikan lewat env. Jika gagal: folder release dihapus, produksi tidak berubah, exit 1.
+   3. Migrasi: `node --env-file=<APP_DIR>/.env releases/<rel>/server/dist/cli.js db:migrate` sebagai `www`. **Migrasi wajib additive**, karena rollback hanya mengembalikan kode, bukan skema.
+   4. Menyalin `deploy/server/bin/*` ke `<APP_DIR>/bin/`.
+   5. Mencatat target symlink lama, lalu `ln -sfn releases/<rel> app`.
+   6. Jika perintah jalan aaPanel belum `node --env-file=.env app/server/dist/index.js`, mengubahnya lewat `nodejsModel.modify_project`.
+   7. Restart lewat aaPanel (`bin/restart.sh`).
+   8. Healthcheck `http://127.0.0.1:3210/healthz` maksimal 40 detik. Field `version` wajib sama dengan `<sha>`. Jika gagal:
+      - symlink dikembalikan ke release lama (pada deploy pertama: perintah jalan kembali ke placeholder);
+      - restart;
+      - exit 1.
+   9. Menghapus release selain 3 terbaru.
+4. Setelah sukses: `git push` ke GitHub sebagai cadangan.
 
-1. Mengunci proses (`flock`) dan berjalan dari salinan sementara, agar skrip tidak berubah di tengah jalan saat `git merge`.
-2. `git fetch origin main`. Selesai tanpa log jika tidak ada commit baru, **atau jika commit terbaru tercatat gagal** di `.deploy-state/failed-sha`. Commit yang gagal tidak dicoba ulang sampai ada commit baru, agar produksi tidak restart berulang tiap 2 menit.
-3. Batal jika folder produksi punya perubahan lokal.
-4. `git merge --ff-only`. Batal jika riwayat `main` ditulis ulang.
-5. Jika perubahan hanya di `docs/`, `README.md`, atau `CLAUDE.md`: selesai tanpa build dan restart.
-6. Jika ada script `build`: `npm ci` + `npm run build` (sebagai `www`). Jika ada script `db:migrate`: dijalankan. **Langkah yang gagal langsung menghentikan deploy.**
-7. Restart lewat aaPanel (`deploy/aapanel/restart.sh` → `nodejsModel.restart_project`).
-8. Healthcheck `HEALTH_URL` maksimal 40 detik. Setelah repo punya script `build`, field `version` di `/healthz` **wajib sama dengan SHA commit target**. Placeholder cukup HTTP 200.
-9. Jika langkah 6–8 gagal: SHA dicatat di `failed-sha`, `git reset` ke commit sebelumnya, build ulang, restart, lalu catat `GAGAL`/`Rollback`.
+Aturan penulisan skrip, dari review 1 Nov 2026:
+- Setiap langkah dicek eksplisit (`|| { log …; exit 1; }`). Jangan mengandalkan `set -e` di dalam fungsi yang dipanggil dari `if`, karena bash mengabaikannya di sana.
+- Output panjang npm/build ditulis ke `releases/<rel>/.build.log`, bukan ke log utama.
+- Skenario wajib diuji di sandbox server sebelum dipakai: deploy pertama dari placeholder, build gagal, healthcheck/versi salah, dan rollback manual.
 
-Catatan operasional:
-- Log ringkas: `/www/wwwlogs/wa_kppbwi_app-deploy.log`. Output lengkap npm/build hanya ada di `.deploy-state/last-deploy.log` dan `last-rollback.log`, yang ditimpa setiap deploy agar disk tidak terisi.
-- Memaksa build & restart ulang, termasuk mencoba lagi commit yang tercatat gagal: `bash deploy/aapanel/auto-deploy.sh --force`.
-- Skenario gagal (build gagal, versi healthcheck salah, folder kotor, perubahan dokumen saja) sudah diuji di sandbox server pada 1 Nov 2026.
+Operasional:
+- Log ringkas: `/www/wwwlogs/wa_kppbwi_app-deploy.log`.
+- Rollback manual: `scripts/deploy.sh --rollback`. Perintah ini mengarahkan symlink ke release sebelumnya, lalu restart dan healthcheck.
 - **Kontrak untuk aplikasi:**
   - script root `build` membangun shared, server, dan web;
-  - script root `db:migrate` = `node --env-file=.env server/dist/cli.js db:migrate`;
-  - `GET /healthz` mengembalikan 200 dan JSON berisi `version` = SHA commit lengkap (dari `git rev-parse HEAD` saat build).
-- Merge ke `main` hanya lewat PR yang lolos CI (GitHub Actions + branch protection, dipasang di Prompt 0).
-- **Migrasi database wajib additive** (tambah kolom/tabel, tidak menghapus atau mengganti nama dalam satu langkah). Rollback hanya mengembalikan kode, bukan skema.
-- Build berjalan in-place. Proses lama tetap melayani sampai restart. `node_modules` tidak di-prune karena build memakai devDependencies.
+  - `server/dist/cli.js db:migrate` tersedia;
+  - `GET /healthz` mengembalikan 200 dan JSON berisi `version` = `APP_VERSION` saat build.
 
 ### 12.4 Cron (didaftarkan di aaPanel → Cron, tipe Shell Script)
 
 | Nama tugas | Jadwal | Perintah | Kapan dibuat |
 |---|---|---|---|
-| WA Inbox – Auto deploy | tiap 2 menit | `bash /www/wwwroot/wa.kppbwi.app/deploy/aapanel/auto-deploy.sh` | **sudah** |
-| WA Inbox – Watchdog | tiap 5 menit | `bash /www/wwwroot/wa.kppbwi.app/deploy/aapanel/watchdog.sh`: jika `/healthz` gagal 2× berturut-turut → `restart.sh`, catat ke log. Diperlukan karena aaPanel menjalankan Node project dengan `nohup` dan tidak menyalakan ulang proses yang crash | Prompt 3 |
+| WA Inbox – Watchdog | tiap 5 menit | `bash /www/wwwroot/wa.kppbwi.app/bin/watchdog.sh`: jika `/healthz` gagal 2× berturut-turut → `restart.sh`, catat ke log. Diperlukan karena aaPanel menjalankan Node project dengan `nohup` dan tidak menyalakan ulang proses yang crash | Prompt 3 |
 | Backup DB wainbox | harian 01:00, simpan 7 | Tipe **Backup Database** bawaan aaPanel | Prompt 3 |
-| WA Inbox – Sinkron template | tiap 30 menit | `bash /www/wwwroot/wa.kppbwi.app/deploy/aapanel/cli.sh templates:sync` | Prompt 8 |
-| WA Inbox – Housekeeping | harian 02:30 | `bash /www/wwwroot/wa.kppbwi.app/deploy/aapanel/cli.sh housekeeping`: hapus sesi kedaluwarsa, `webhook_events` selesai > 30 hari, delivery > 30 hari, idempotency > 24 jam, dan media > `MEDIA_RETENTION_DAYS` | Prompt 10 |
+| WA Inbox – Sinkron template | tiap 30 menit | `bash /www/wwwroot/wa.kppbwi.app/bin/cli.sh templates:sync` | Prompt 8 |
+| WA Inbox – Housekeeping | harian 02:30 | `bash /www/wwwroot/wa.kppbwi.app/bin/cli.sh housekeeping`: hapus sesi kedaluwarsa, `webhook_events` selesai > 30 hari, delivery > 30 hari, idempotency > 24 jam, dan media > `MEDIA_RETENTION_DAYS` | Prompt 10 |
 
-`deploy/aapanel/cli.sh` menjalankan CLI sebagai `www`:
-`runuser -u www -- /www/server/nodejs/v24.14.0/bin/node --env-file=/www/wwwroot/wa.kppbwi.app/.env /www/wwwroot/wa.kppbwi.app/server/dist/cli.js "$@"`
+`bin/cli.sh` menjalankan CLI sebagai `www`:
+`runuser -u www -- /www/server/nodejs/v24.14.0/bin/node --env-file=/www/wwwroot/wa.kppbwi.app/.env /www/wwwroot/wa.kppbwi.app/app/server/dist/cli.js "$@"`
 
 Cron dibuat lewat UI aaPanel atau `btpython` (`crontab.crontab().AddCrontab`). Nama tugas harus persis seperti di atas.
 
@@ -488,16 +489,12 @@ Cron dibuat lewat UI aaPanel atau `btpython` (`crontab.crontab().AddCrontab`). N
 - Deploy: `/www/wwwlogs/wa_kppbwi_app-deploy.log`.
 - Apache: `/www/wwwlogs/wa_kppbwi_app-*_log`.
 
-### 12.6 Tempat kerja pengembangan
+### 12.6 Pengembangan lokal (laptop)
 
-| Tempat | Dipakai untuk | Database test (`DATABASE_URL_TEST`) |
-|---|---|---|
-| Sesi cloud Claude Code | Menulis kode & test (sebagian besar prompt), lihat [CLOUD.md](CLOUD.md) | Container `mariadb:10.11` dari hook SessionStart |
-| Laptop (Windows) | Sama, plus langkah yang perlu akses server | Docker `mariadb:10.11`, atau `wainbox_dev` di server lewat tunnel SSH |
-| Clone dev di server | Langkah yang butuh aaPanel atau uji Meta asli | `wainbox_dev` (dibuat lewat aaPanel di Prompt 3) |
-
+- Node 24 di laptop. Semua perintah dijalankan dari folder proyek.
+- Database dev & test: `wainbox_dev`, dibuat lewat aaPanel di Prompt 1. Diakses lewat tunnel `ssh -N -L 3307:127.0.0.1:3306 <host>` (host di `DEPLOYMENT.local.md`). Variabel `DATABASE_URL` (dev) dan `DATABASE_URL_TEST` ada di `.env` lokal.
 - `npm run dev` menjalankan server (tsx watch, port 3210) dan Vite (port 5173, proxy `/api` & `/webhooks` ke 3210).
-- Meta tidak bisa memanggil localhost atau VM cloud. Uji lokal memakai `scripts/simulate-webhook.ts` yang mengirim fixture bertanda tangan. Uji dengan Meta asli dilakukan di produksi.
+- Meta tidak bisa memanggil localhost. Uji lokal memakai `scripts/simulate-webhook.ts` yang mengirim fixture bertanda tangan. Uji dengan Meta asli dilakukan di produksi.
 
 ## 13. Pengujian
 
@@ -511,9 +508,9 @@ Cron dibuat lewat UI aaPanel atau `btpython` (`crontab.crontab().AddCrontab`). N
   - enkripsi AES-GCM;
   - hash API key & idempotensi;
   - signature webhook keluar.
-- Integrasi: Fastify `inject` terhadap database test dari `DATABASE_URL_TEST` (container `mariadb:10.11` di cloud/laptop, atau `wainbox_dev`; skema dibuat ulang per run) untuk alur webhook → pesan → SSE, kirim pesan (Graph di-mock), dan API v1.
+- Integrasi: Fastify `inject` terhadap database test dari `DATABASE_URL_TEST` (`wainbox_dev` lewat tunnel SSH; skema dibuat ulang per run) untuk alur webhook → pesan → SSE, kirim pesan (Graph di-mock), dan API v1.
 - Fixture disimpan di `server/test/fixtures/meta/` dengan bentuk payload resmi Meta.
-- **CI:** GitHub Actions menjalankan lint, typecheck, test (dengan service container `mariadb:10.11`), dan build untuk setiap PR. Branch `main` dilindungi sehingga hanya bisa di-merge jika CI hijau. Ini penting karena merge ke `main` langsung tayang di produksi.
+- **Sebelum deploy:** `npm run check` (lint, typecheck, test) wajib hijau. `scripts/deploy.sh` menjalankannya dan menolak deploy jika gagal.
 - **Smoke test produksi** setelah deploy: `/healthz`, login, SSE, kirim pesan ke nomor uji, terima balasan, status ✓✓ biru.
 
 ## 14. Checklist di sisi Meta (dikerjakan admin)
