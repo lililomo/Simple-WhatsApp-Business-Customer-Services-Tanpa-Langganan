@@ -5,6 +5,14 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 ## Posisi sekarang
 
 - **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih menerima pesan di sisinya sendiri, tetapi portal kppbwi.app tidak lagi memakainya.
+- **Selesai (2 Nov 2026):** kuota pesan service gratis (SPEC §17).
+  - Hitungan realtime dari webhook status semua aplikasi di nomor kantor (tabel `message_pricing`, migrasi `0004`), plus laporan `pricing_analytics` Meta dan status `service_pricing_policy`.
+  - Chip "X dari 1.000 pesan gratis tersisa" di daftar chat.
+- **Selesai (2 Nov 2026):** seluruh otomasi WhatsApp Business di portal kppbwi.app dimatikan atas permintaan pemilik.
+  - Billing via WhatsApp tidak dipakai; webhook Kirimdev diabaikan.
+  - Worker portal tidak mengirim lewat jalur resmi.
+  - API key & webhook portal di WA Inbox dicabut.
+  - Portal tinggal SSO + statistik. Kirimdev akan dimatikan pemilik.
 - **Selesai (2 Nov 2026, dini hari):** login lewat portal kppbwi.app (SPEC §16).
   - **WA Inbox:**
     - SSO tiket HMAC sekali pakai, sesi ikut batas sesi portal;
@@ -25,8 +33,7 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
     - pesan masuk `#REQUEST_BILLING#` datang lewat webhook WA Inbox → `/WhatsApp/webhook/wa-inbox`.
   - API key hari libur portal (api.co.id) dipakai juga oleh WA Inbox: 56 hari libur tersinkron.
   - **Teruji di produksi:** tombol beranda, tiket SSO (303, peran Admin, NIP & seksi), tiket dipakai ulang ditolak, halaman statistik & akses 200, logout portal memutus sesi WA Inbox, tanda tangan webhook WA Inbox → portal (sah 200, palsu 401).
-  - **Belum teruji dengan pesan nyata:** permintaan `#REQUEST_BILLING#` dari HP dan pengiriman kode billing lewat WA Inbox.
-  - **Perlu tindakan pemilik:** nyalakan balasan otomatis WA Inbox (Pengaturan → Jam kerja). Sejak Kirimdev portal dimatikan, balasan luar jam kerja **tidak ada** sampai fitur ini dinyalakan.
+  - Balasan otomatis WA Inbox sudah dinyalakan pemilik (2 Nov 2026) dengan teks lama portal.
 - **Selesai (2 Nov 2026):** paket fitur permintaan pemilik (SPEC §5, §7, §10, §15). Migrasi `0002`.
   1. Balasan cepat lokal bersama: menu ⚡ dan pemicu `/` di kotak balas, variabel `{salam}`/`{nama}`/`{petugas}`, halaman Pengaturan → Balasan cepat.
   2. Panel emoji & stiker ala WhatsApp Web:

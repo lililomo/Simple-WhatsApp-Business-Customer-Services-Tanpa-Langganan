@@ -58,6 +58,14 @@ const commands: Record<string, Command> = {
     process.stdout.write(`WA_INBOX_URL=${config.APP_URL}\nWA_INBOX_API_KEY=${key}\nWA_INBOX_WEBHOOK_SECRET=${secret}\n`);
   },
 
+  // Kebalikan portal:provision: portal tidak lagi mengirim/menerima pesan WhatsApp lewat WA Inbox
+  // (otomasi billing & balasan dimatikan). SSO dan statistik tidak terpengaruh.
+  'portal:deprovision': async ({ db }, _args, config) => {
+    const [keys] = await db.update(apiKeys).set({ revokedAt: new Date() }).where(and(eq(apiKeys.name, 'Portal kppbwi.app'), isNull(apiKeys.revokedAt)));
+    const [hooks] = await db.delete(outboundWebhooks).where(eq(outboundWebhooks.url, `${config.PORTAL_URL.replace(/\/$/, '')}/WhatsApp/webhook/wa-inbox`));
+    console.log(`API key portal dicabut: ${keys.affectedRows}; webhook keluar ke portal dihapus: ${hooks.affectedRows}.`);
+  },
+
   // API key api.co.id untuk hari libur, dibaca dari stdin agar tidak muncul di riwayat terminal.
   'holiday-key:set': async (database, _args, config) => {
     const key = (await readStdinLine()).trim();

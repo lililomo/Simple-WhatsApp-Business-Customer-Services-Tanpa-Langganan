@@ -291,6 +291,25 @@ export const outboundWebhookDeliveries = mysqlTable(
   (t) => [index('deliveries_status_idx').on(t.status, t.nextAttemptAt)],
 );
 
+/**
+ * Data `pricing` dari webhook status untuk SEMUA pesan keluar nomor kantor, termasuk yang dikirim aplikasi
+ * lain di WABA yang sama (mis. Kirimdev). Dasar hitungan kuota 1.000 pesan service gratis per bulan.
+ */
+export const messagePricing = mysqlTable(
+  'message_pricing',
+  {
+    wamid: varchar('wamid', { length: 128 }).primaryKey(),
+    category: varchar('category', { length: 32 }),
+    type: varchar('type', { length: 32 }),
+    subtype: varchar('subtype', { length: 32 }),
+    billable: boolean('billable'),
+    /** Waktu terkirim ke HP (status delivered/read pertama); Meta menghitung pesan saat delivered. */
+    deliveredAt: ts('delivered_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('message_pricing_delivered_idx').on(t.deliveredAt)],
+);
+
 /** ID tiket SSO yang sudah dipakai, agar satu tiket tidak bisa dipakai ulang. */
 export const ssoNonces = mysqlTable('sso_nonces', {
   jti: varchar('jti', { length: 64 }).primaryKey(),

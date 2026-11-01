@@ -15,7 +15,7 @@ const NOT_A_QUESTION = new Set(['reaction', 'system']);
 const MEDIA = new Set(['image', 'video', 'audio', 'document']);
 
 /** Awal bulan WIB (UTC+7) dalam UTC. */
-function monthStartWib(year: number, month1: number): Date {
+export function monthStartWib(year: number, month1: number): Date {
   return new Date(Date.UTC(year, month1 - 1, 1) - 7 * HOUR);
 }
 

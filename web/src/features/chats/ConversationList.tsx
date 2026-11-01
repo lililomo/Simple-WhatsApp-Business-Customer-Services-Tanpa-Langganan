@@ -12,6 +12,7 @@ import { formatListTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Avatar, WindowBadge } from './bits';
 import { useConversations } from './queries';
+import { QuotaChip } from './QuotaChip';
 
 const FILTERS: { value: ConversationFilter; label: string }[] = [
   { value: 'all', label: 'Semua' },
@@ -80,6 +81,7 @@ export function ConversationList() {
             <MessageSquarePlus /> Chat baru
           </Button>
         </div>
+        <QuotaChip />
         <div className="relative">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="rounded-xl border-transparent bg-muted pl-9" placeholder="Cari nama, nomor, atau isi pesan" value={search} onChange={(e) => setSearch(e.target.value)} />

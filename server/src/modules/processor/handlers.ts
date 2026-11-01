@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { messagePreview } from '@wa/shared';
-import { contacts, conversations, media, messages, templates, waAccounts } from '../../db/schema';
+import { contacts, conversations, media, messagePricing, messages, templates, waAccounts } from '../../db/schema';
 import {
   MEDIA_TYPES,
   type InboundMessage,
@@ -256,8 +256,30 @@ async function handleInbound(
   }
 }
 
+/**
+ * Catat `pricing` setiap pesan keluar nomor ini — juga yang dikirim aplikasi lain (Kirimdev) — untuk
+ * hitungan kuota service gratis. Idempoten, jadi aman saat webhook diproses ulang.
+ */
+async function recordPricing(deps: AppDeps, st: StatusUpdate) {
+  if (!st.pricing) return;
+  const delivered = st.status === 'delivered' || st.status === 'read' ? tsToDate(st.timestamp) : null;
+  const p = {
+    category: st.pricing.category ?? null,
+    type: st.pricing.type ?? null,
+    subtype: st.pricing.subtype ?? null,
+    billable: st.pricing.billable ?? null,
+  };
+  await deps.database.db
+    .insert(messagePricing)
+    .values({ wamid: st.id, ...p, deliveredAt: delivered })
+    .onDuplicateKeyUpdate({
+      set: { ...p, ...(delivered ? { deliveredAt: sql`coalesce(${messagePricing.deliveredAt}, ${delivered})` } : {}) },
+    });
+}
+
 async function handleStatus(deps: AppDeps, st: StatusUpdate, receivedAt: Date) {
   const { db } = deps.database;
+  await recordPricing(deps, st);
   const [msg] = await db.select().from(messages).where(eq(messages.wamid, st.id)).limit(1);
   if (!msg) {
     // Pesan dari aplikasi lain di WABA yang sama (mis. Kirimdev) tidak pernah tercatat di sini.

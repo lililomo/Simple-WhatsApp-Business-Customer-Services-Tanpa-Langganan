@@ -68,7 +68,7 @@ export interface StatusUpdate {
   timestamp: string;
   recipient_id?: string;
   errors?: MetaStatusError[];
-  pricing?: { billable?: boolean; category?: string; pricing_model?: string; type?: string };
+  pricing?: { billable?: boolean; category?: string; pricing_model?: string; type?: string; subtype?: string };
 }
 
 export const MEDIA_TYPES = ['image', 'video', 'audio', 'document', 'sticker'] as const;

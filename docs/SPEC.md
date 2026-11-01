@@ -641,8 +641,22 @@ Hasil go-live 1 Nov 2026: [GO-LIVE.md](GO-LIVE.md).
   - balasan otomatis tidak menutup pertanyaan;
   - pesan via API (mis. kode billing dari portal) menutupnya sebagai "dijawab sistem";
   - jawaban hingga 3 hari setelah akhir bulan tetap dihitung.
-- **Pengganti Kirimdev di portal:**
-  - `WaWorker` mengirim baris antrean resmi lewat API v1 (key "Portal kppbwi.app", `Idempotency-Key: wa-antrian-<id>`);
-  - pesan masuk sampai ke portal lewat webhook keluar `message.received` → `https://kppbwi.app/WhatsApp/webhook/wa-inbox`;
-  - hanya pesan berisi `#REQUEST_BILLING#` yang diteruskan ke billing; jendela 24 jam portal disegarkan untuk setiap pesan;
-  - provisioning: `bin/cli.sh portal:provision` (mencetak baris .env portal, dialirkan langsung ke berkas).
+- **Otomasi WhatsApp Business di portal: dimatikan** (2 Nov 2026, keputusan pemilik).
+  - Billing via WhatsApp tidak dipakai lagi; webhook Kirimdev dijawab tanpa diproses.
+  - Worker portal tidak mengirim baris jalur resmi.
+  - Integrasi kirim/terima portal ↔ WA Inbox dicabut (`bin/cli.sh portal:deprovision`).
+  - Portal hanya memakai SSO dan statistik.
+
+## 17. Kuota pesan service gratis
+
+- **Aturan Meta sejak 1 Okt 2026:** 1.000 pesan service (non-template, di dalam jendela 24 jam) gratis per nomor per bulan; reset pukul 00.00 zona waktu akun.
+  - Pesan ke-1.001 dan seterusnya: `pricing.type` = `regular`, `billable` = true.
+  - Instansi pemerintah eligible (`service_pricing_policy` = `PAID_EXEMPT`, `subtype` = `paid_exempt`) tetap gratis sampai 31 Des 2027.
+- **Hitungan realtime:** setiap webhook status yang membawa `pricing` dicatat di `message_pricing`, termasuk pesan dari aplikasi lain di nomor yang sama (Kirimdev).
+  - Satu baris per wamid; `delivered_at` = status delivered/read pertama.
+  - Isi awal diambil dari tabel `messages`.
+- **Laporan Meta:** `GET /{WABA}?fields=currency,pricing_analytics.start(..).end(..).granularity(DAILY).dimensions(PRICING_CATEGORY,PRICING_TYPE)` disimpan sementara 15 menit; `service_pricing_policy` disimpan sementara 6 jam.
+- **`GET /api/usage`** (semua petugas): terpakai = nilai terbesar dari hitungan lokal dan laporan Meta; sisa = 1.000 − terpakai. Tampil sebagai chip di daftar chat, diperbarui tiap 30 detik.
+- **Batas akurasi:**
+  - Hitungan lokal baru lengkap untuk pesan Kirimdev sejak tabel ini ada (2 Nov 2026).
+  - Bulan berjalan menganggap zona waktu akun WhatsApp = WIB.

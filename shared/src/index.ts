@@ -11,3 +11,4 @@ export * from './business-hours';
 export * from './push';
 export * from './sso';
 export * from './stats';
+export * from './usage';

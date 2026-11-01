@@ -29,6 +29,13 @@
       "when": 1793557111197,
       "tag": "0003_portal_sso",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1793559493528,
+      "tag": "0004_message_pricing",
+      "breakpoints": true
     }
   ]
 }
