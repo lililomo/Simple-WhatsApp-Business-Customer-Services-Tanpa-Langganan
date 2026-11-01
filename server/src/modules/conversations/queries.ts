@@ -10,6 +10,19 @@ function decodeCursor(cursor: string | undefined) {
   return m ? { at: new Date(Number(m[1])), id: Number(m[2]) } : null;
 }
 
+/**
+ * Ubah teks pencarian menjadi query FULLTEXT boolean: setiap kata ≥ 3 huruf wajib ada, cocok sebagai awalan.
+ * Kata lebih pendek diabaikan karena tidak diindeks InnoDB (innodb_ft_min_token_size = 3).
+ */
+export function fulltextQuery(q: string): string | null {
+  const terms = q
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((t) => t.length >= 3)
+    .slice(0, 8);
+  return terms.length ? terms.map((t) => `+${t}*`).join(' ') : null;
+}
+
 export async function listConversations(
   db: Db,
   opts: { filter: ConversationFilter; q?: string; cursor?: string; limit: number },
@@ -24,17 +37,22 @@ export async function listConversations(
     const digits = q.replace(/\D/g, '');
     // Nomor diketik "08…" tetapi disimpan WhatsApp sebagai "628…".
     const numberVariants = digits.length >= 3 ? [digits, ...(digits.startsWith('0') ? [`62${digits.slice(1)}`] : [])] : [];
+    const fulltext = fulltextQuery(q);
     conds.push(
       or(
         like(contacts.displayName, pattern),
         like(contacts.profileName, pattern),
         ...numberVariants.map((d) => like(contacts.waId, `%${d}%`)),
-        exists(
-          db
-            .select({ one: sql`1` })
-            .from(messages)
-            .where(and(eq(messages.conversationId, conversations.id), like(messages.text, pattern))),
-        ),
+        ...(fulltext
+          ? [
+              exists(
+                db
+                  .select({ one: sql`1` })
+                  .from(messages)
+                  .where(and(eq(messages.conversationId, conversations.id), sql`MATCH(${messages.text}) AGAINST(${fulltext} IN BOOLEAN MODE)`)),
+              ),
+            ]
+          : []),
       )!,
     );
   }

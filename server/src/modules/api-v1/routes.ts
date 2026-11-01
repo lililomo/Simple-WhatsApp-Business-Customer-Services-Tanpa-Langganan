@@ -21,7 +21,7 @@ import { listConversations, listMessages } from '../conversations/queries';
 import { replyWithMedia } from '../media/routes';
 import { uploadOutboundMedia } from '../media/service';
 import { mediaSpec, textSpec } from '../messages/build';
-import { sendToConversation, type OutboundSpec } from '../messages/service';
+import { sendToConversation, windowClosed, type OutboundSpec } from '../messages/service';
 import { upsertContact, upsertConversation } from '../processor/handlers';
 import { listTemplates, templateSpec } from '../templates/service';
 
@@ -167,6 +167,16 @@ async function apiSend(deps: AppDeps, req: FastifyRequest, body: ApiSendMessageB
     };
   }
 
+  // Tolak pesan bebas ke nomor tanpa jendela terbuka sebelum membuat kontak/percakapan baru.
+  if (spec.requiresWindow) {
+    const [existing] = await db
+      .select({ csw: conversations.cswExpiresAt })
+      .from(conversations)
+      .innerJoin(contacts, eq(contacts.id, conversations.contactId))
+      .where(and(eq(contacts.waId, waId), eq(conversations.waAccountId, account.id)))
+      .limit(1);
+    if (!existing?.csw || existing.csw.getTime() <= Date.now()) throw windowClosed();
+  }
   const contact = await upsertContact(deps, waId, null, null);
   const conv = await upsertConversation(deps, account.id, contact.id);
   let replyToMessageId: number | null = null;

@@ -182,7 +182,7 @@ function TemplateComposer({
       )}
       {v.header?.keys.map((k) => field(`Header {{${k}}}`, header[k], (s) => setHeader({ ...header, [k]: s })))}
       {v.body.map((k) => field(`Isi {{${k}}}`, body[k], (s) => setBody({ ...body, [k]: s })))}
-      {v.buttons.map((b) => b.keys.map((k) => field(`Tombol "${b.text}" {{${k}}}`, buttons[k], (s) => setButtons({ ...buttons, [k]: s }))))}
+      {v.buttons.map((b) => field(`Tombol "${b.text}" (akhiran URL)`, buttons[String(b.index)], (s) => setButtons({ ...buttons, [String(b.index)]: s })))}
       <div className="rounded-lg bg-chat-bg p-3">
         <div className="ml-auto max-w-[90%] rounded-lg bg-bubble-out px-3 py-2 text-sm shadow-sm">
           <FormattedText text={renderTemplateText(selected.components, params)} />

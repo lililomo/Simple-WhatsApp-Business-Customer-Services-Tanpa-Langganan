@@ -7,6 +7,7 @@ import { audit } from '../audit/service';
 import { toUserDTO } from '../users/dto';
 import { normalizeEmail, setPassword } from '../users/service';
 import { randomToken } from '../../lib/crypto';
+import { SlidingCounter } from '../../lib/sliding-counter';
 import { hashPassword, verifyPassword } from './password';
 import { clearSessionCookie, requireUser, requireUserHook, startSession } from './plugin';
 
@@ -18,7 +19,7 @@ const invalidLogin = () => new AppError(401, 'invalid_credentials', 'Email atau 
 export async function authRoutes(app: AppInstance) {
   const { database, config } = app.deps;
   const db = database.db;
-  const attemptsByEmail = new Map<string, number[]>();
+  const attemptsByEmail = new SlidingCounter(LOGIN_WINDOW_MS);
   // Hash dummy agar waktu respons sama baik email terdaftar maupun tidak.
   const dummyHash = hashPassword(randomToken(16));
 
@@ -30,13 +31,10 @@ export async function authRoutes(app: AppInstance) {
     },
     async (req, reply) => {
       const email = normalizeEmail(req.body.email);
-      const now = Date.now();
-      const recent = (attemptsByEmail.get(email) ?? []).filter((t) => now - t < LOGIN_WINDOW_MS);
-      if (recent.length >= LOGIN_LIMIT) {
+      if (attemptsByEmail.count(email) >= LOGIN_LIMIT) {
         throw new AppError(429, 'rate_limited', 'Terlalu banyak percobaan masuk. Coba lagi dalam 1 menit.');
       }
-      recent.push(now);
-      attemptsByEmail.set(email, recent);
+      attemptsByEmail.hit(email);
 
       const user = await db.query.users.findFirst({ where: eq(users.email, email) });
       const ok = await verifyPassword(user?.passwordHash ?? (await dummyHash), req.body.password);
@@ -45,7 +43,7 @@ export async function authRoutes(app: AppInstance) {
         throw invalidLogin();
       }
 
-      attemptsByEmail.delete(email);
+      attemptsByEmail.clear(email);
       await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
       await startSession(app, req, reply, user.id);
       await audit(db, { actorUserId: user.id, action: 'auth.login', ip: req.ip });

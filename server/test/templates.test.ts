@@ -94,7 +94,7 @@ describe('templates', () => {
       payload: {
         phone: '0812-3456-7890',
         templateId: byName.penyampaian_spt!.id,
-        params: { header: { '1': 'SPT' }, body: { '1': 'Bapak Budi', '2': '2025' }, buttons: { '1': 'login' } },
+        params: { header: { '1': 'SPT' }, body: { '1': 'Bapak Budi', '2': '2025' }, buttons: { '0': 'login' } },
         clientRef: 'ref-template-01',
       },
     });

@@ -81,7 +81,7 @@ export async function uploadOutboundMedia(
   }
   if (file.data.length === 0) throw new AppError(400, 'media_empty', 'File kosong.');
 
-  const stored = await storeMediaFile(deps.config, file.data, mime, file.fileName);
+  // Unggah ke Meta dulu: salinan lokal baru disimpan setelah berhasil, agar tidak ada file yatim di disk.
   const form = new FormData();
   form.append('messaging_product', 'whatsapp');
   form.append('type', mime);
@@ -94,6 +94,7 @@ export async function uploadOutboundMedia(
     await noteTokenError(deps, account, err);
     throw metaToAppError(err);
   }
+  const stored = await storeMediaFile(deps.config, file.data, mime, file.fileName);
   const { db } = deps.database;
   const [res] = await db.insert(media).values({
     waMediaId,

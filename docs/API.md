@@ -49,7 +49,7 @@ curl -X POST https://wa.kppbwi.app/api/v1/messages \
 ```
 
 - Variabel posisi `{{1}}` diisi dengan kunci `"1"`, `"2"`, dan seterusnya; variabel bernama `{{nama}}` dengan kunci `"nama"`.
-- Variabel header teks: `params.header`; tombol URL dinamis: `params.buttons`.
+- Variabel header teks: `params.header`. Tombol URL dinamis: `params.buttons`, dengan kunci **indeks tombol** (`"0"` untuk tombol pertama, `"1"` untuk tombol kedua) dan nilai berupa akhiran URL.
 - Header gambar/dokumen: unggah dulu lewat `/api/v1/media`, lalu isi `params.headerMediaId`.
 - Daftar template dan variabelnya: `GET /api/v1/templates?status=APPROVED`.
 

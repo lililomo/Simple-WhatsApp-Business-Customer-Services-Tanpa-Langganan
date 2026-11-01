@@ -29,10 +29,14 @@ export function notificationsSupported(): boolean {
 
 export function showBrowserNotification(title: string, body: string, onClick: () => void) {
   if (!notificationsSupported() || Notification.permission !== 'granted') return;
-  const n = new Notification(title, { body, tag: title, icon: '/favicon.svg' });
-  n.onclick = () => {
-    window.focus();
-    onClick();
-    n.close();
-  };
+  try {
+    const n = new Notification(title, { body, tag: title, icon: '/favicon.svg' });
+    n.onclick = () => {
+      window.focus();
+      onClick();
+      n.close();
+    };
+  } catch {
+    // Chrome Android hanya mengizinkan notifikasi lewat service worker; bunyi tetap diputar.
+  }
 }

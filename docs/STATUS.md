@@ -45,7 +45,24 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
   - Swagger UI di `/api/docs` khusus admin.
   - Webhook keluar: `message.received`/`message.sent`/`message.status` ditandatangani HMAC, retry 1 mnt–24 jam, nonaktif otomatis setelah 50 gagal, kirim ulang/uji/ganti secret.
   - UI Pengaturan → API & Webhook; panduan integrasi di [API.md](API.md).
-- **Langkah berikutnya:** Prompt 10 di [PROMPTS.md](PROMPTS.md).
+- **Selesai:** Prompt 10.
+  - Pemeriksaan hak akses dipindah ke `preValidation`, agar request tanpa login/hak selalu dibalas 401/403 sebelum validasi body. Ditambah test matriks otorisasi untuk semua rute admin dan sesi.
+  - Halaman publik `/privacy` (draf; bagian [PERLU DISETUJUI] wajib diisi kantor).
+  - CLI `housekeeping` + cron aaPanel "WA Inbox – Housekeeping" (harian 02:30).
+  - Code review seluruh kode menemukan 7 masalah, semuanya diperbaiki:
+    - timeout unduh media 5 menit;
+    - tidak ada file yatim saat unggah ke Meta gagal;
+    - notifikasi Android tidak lagi error;
+    - variabel tombol URL dikunci per indeks tombol;
+    - penghitung percobaan dibersihkan berkala;
+    - pencarian isi pesan memakai indeks FULLTEXT (migrasi `0001`);
+    - API v1 tidak membuat kontak kosong saat ditolak `window_closed`.
+  - Disk server 1 Nov 2026: sisa 11 GB (88% terpakai). Aplikasi memakai sekitar 300 MB (3 release ≈ 211 MB, cache npm 82 MB).
+- **Cron aaPanel aktif:** WA Inbox – Watchdog (5 menit), Backup DB wainbox (01:00, simpan 7), WA Inbox – Sinkron template (30 menit), WA Inbox – Housekeeping (02:30).
+- **Langkah berikutnya:** Prompt 11 (go-live dengan Meta). Butuh pemilik untuk:
+  1. membuat admin produksi;
+  2. menyiapkan Meta App + system user token (SPEC §14).
+- **Belum diverifikasi:** SSE lewat Apache di produksi (setelah admin produksi ada).
 - Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
 - **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
 

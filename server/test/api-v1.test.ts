@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { apiKeys, messages, outboundWebhookDeliveries, outboundWebhooks, templates, waAccounts } from '../src/db/schema';
+import { apiKeys, contacts, messages, outboundWebhookDeliveries, outboundWebhooks, templates, waAccounts } from '../src/db/schema';
 import { WebhookWorker } from '../src/modules/processor/worker';
 import { WebhookDispatcher } from '../src/modules/webhook-out/dispatcher';
 import type { AppInstance } from '../src/types';
@@ -110,6 +110,8 @@ describe('POST /api/v1/messages', () => {
     const res = await v1(key, 'POST', '/messages', { to: '081111111111', type: 'text', text: 'halo' });
     expect(res.statusCode).toBe(422);
     expect(res.json().error.code).toBe('window_closed');
+    // Tidak meninggalkan kontak/percakapan kosong untuk nomor yang ditolak.
+    expect(await t.get().db.$count(contacts)).toBe(0);
   });
 
   it('sends a template by name to a new number', async () => {

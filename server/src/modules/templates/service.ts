@@ -145,12 +145,18 @@ export async function templateSpec(deps: AppDeps, row: TemplateRow, params: Temp
   if (vars.body.length) {
     graphComponents.push({ type: 'body', parameters: textParams(vars.body, params.body, vars.named, 'isi') });
   }
+  // Tiap tombol URL dinamis punya tepat satu variabel; nilainya dikunci dengan indeks tombol ("0", "1"),
+  // karena dua tombol sama-sama memakai {{1}}.
   for (const b of vars.buttons) {
+    const key = String(b.index);
+    if (!params.buttons?.[key]) {
+      throw new AppError(400, 'template_params', `Variabel tombol "${b.text}" belum diisi.`, { missing: [`buttons.${key}`] });
+    }
     graphComponents.push({
       type: 'button',
       sub_type: 'url',
-      index: String(b.index),
-      parameters: textParams(b.keys, params.buttons, false, `tombol "${b.text}"`).map(({ type, text }) => ({ type, text })),
+      index: key,
+      parameters: [{ type: 'text', text: params.buttons[key] }],
     });
   }
 

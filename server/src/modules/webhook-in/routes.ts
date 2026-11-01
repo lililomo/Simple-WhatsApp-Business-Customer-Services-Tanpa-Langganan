@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { waAccounts, webhookEvents } from '../../db/schema';
 import { decrypt, hmacSha256Hex, safeEqual } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
+import { SlidingCounter } from '../../lib/sliding-counter';
 import type { AppInstance } from '../../types';
 
 // Ukuran payload webhook maksimum dari Meta.
@@ -19,7 +20,7 @@ const verifyQuery = z.object({
 export async function webhookInRoutes(app: AppInstance) {
   const deps = app.deps;
   const { db } = deps.database;
-  const invalidByIp = new Map<string, number[]>();
+  const invalidByIp = new SlidingCounter(60_000);
 
   // Signature dihitung atas byte mentah, jadi body tidak boleh di-parse sebagai JSON terlebih dahulu.
   app.removeAllContentTypeParsers();
@@ -47,12 +48,9 @@ export async function webhookInRoutes(app: AppInstance) {
 
     if (!matched) {
       // Endpoint ini publik: payload bersignature salah tidak pernah disimpan agar disk tidak bisa dibanjiri.
-      const now = Date.now();
-      const recent = (invalidByIp.get(req.ip) ?? []).filter((t) => now - t < 60_000);
-      recent.push(now);
-      invalidByIp.set(req.ip, recent);
+      const recent = invalidByIp.hit(req.ip);
       req.log.warn({ ip: req.ip, bytes: raw?.length ?? 0 }, 'webhook signature invalid');
-      if (recent.length > INVALID_LIMIT_PER_MIN) throw new AppError(429, 'rate_limited', 'Terlalu banyak permintaan.');
+      if (recent > INVALID_LIMIT_PER_MIN) throw new AppError(429, 'rate_limited', 'Terlalu banyak permintaan.');
       throw new AppError(401, 'invalid_signature', 'Signature tidak valid.');
     }
 

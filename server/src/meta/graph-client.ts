@@ -48,6 +48,8 @@ export interface GraphClientOptions {
 
 type Query = Record<string, string | number | undefined>;
 
+const DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
+
 export class GraphClient {
   private readonly fetchFn: FetchFn;
   private readonly base: string;
@@ -88,7 +90,8 @@ export class GraphClient {
 
   /** Unduh file dari URL media Meta (URL lengkap, butuh header Authorization yang sama). */
   async download(url: string): Promise<{ data: Buffer; contentType: string | null }> {
-    const res = await this.raw('GET', url);
+    // File bisa sampai 100 MB, jadi batas waktunya jauh lebih longgar daripada panggilan API biasa.
+    const res = await this.raw('GET', url, undefined, DOWNLOAD_TIMEOUT_MS);
     if (!res.ok) throw new GraphError(res.status, await readError(res));
     return { data: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get('content-type') };
   }
@@ -105,7 +108,12 @@ export class GraphClient {
     return (await res.json()) as T;
   }
 
-  private async raw(method: string, url: string, body?: Record<string, unknown> | FormData): Promise<Response> {
+  private async raw(
+    method: string,
+    url: string,
+    body?: Record<string, unknown> | FormData,
+    timeoutMs = this.timeoutMs,
+  ): Promise<Response> {
     const headers: Record<string, string> = { authorization: `Bearer ${this.token}` };
     let payload: string | FormData | undefined;
     if (body instanceof FormData) payload = body;
@@ -114,7 +122,7 @@ export class GraphClient {
       payload = JSON.stringify(body);
     }
     try {
-      return await this.fetchFn(url, { method, headers, body: payload, signal: AbortSignal.timeout(this.timeoutMs) });
+      return await this.fetchFn(url, { method, headers, body: payload, signal: AbortSignal.timeout(timeoutMs) });
     } catch (err) {
       const reason = err instanceof Error && err.name === 'TimeoutError' ? 'Meta tidak merespons (timeout).' : 'Tidak dapat terhubung ke Meta.';
       throw new GraphError(0, { message: reason });
