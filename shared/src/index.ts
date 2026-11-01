@@ -5,3 +5,4 @@ export * from './messages';
 export * from './conversations';
 export * from './templates';
 export * from './send';
+export * from './integration';

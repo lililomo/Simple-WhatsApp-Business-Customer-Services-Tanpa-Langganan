@@ -1,5 +1,6 @@
 import { and, eq, gt } from 'drizzle-orm';
 import { sessions, users } from '../../db/schema';
+import { isRealtimeEvent } from '../../lib/bus';
 import type { AppInstance } from '../../types';
 import { requireUser, requireUserHook } from '../auth/plugin';
 
@@ -27,7 +28,7 @@ export async function realtimeRoutes(app: AppInstance) {
     res.write(`retry: 3000\nevent: hello\ndata: {}\n\n`);
 
     const unsubscribe = deps.bus.on((event) => {
-      if (event.type === 'webhook.stored') return;
+      if (!isRealtimeEvent(event)) return;
       res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
     });
 

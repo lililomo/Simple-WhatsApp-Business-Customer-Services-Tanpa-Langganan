@@ -39,7 +39,13 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
   - Kirim template: variabel header/isi/tombol URL dinamis, header media; parameter posisi `{{1}}` maupun bernama `{{nama}}`. Teks hasil isian disimpan.
   - Mulai chat baru ke nomor `08…`/`+62…` dengan template.
   - Web: pemilih template (cari, penanda biaya Marketing, isian variabel, preview) dan dialog "Chat baru".
-- **Langkah berikutnya:** Prompt 9 di [PROMPTS.md](PROMPTS.md).
+- **Selesai:** Prompt 9.
+  - API key `wai_…`: hash SHA-256, scope, cabut.
+  - REST `/api/v1`: kirim teks/template/media, status pesan, percakapan, pesan, kontak, template, unggah/unduh media. Rate limit per key; `Idempotency-Key` dengan placeholder anti-ganda.
+  - Swagger UI di `/api/docs` khusus admin.
+  - Webhook keluar: `message.received`/`message.sent`/`message.status` ditandatangani HMAC, retry 1 mnt–24 jam, nonaktif otomatis setelah 50 gagal, kirim ulang/uji/ganti secret.
+  - UI Pengaturan → API & Webhook; panduan integrasi di [API.md](API.md).
+- **Langkah berikutnya:** Prompt 10 di [PROMPTS.md](PROMPTS.md).
 - Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
 - **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
 

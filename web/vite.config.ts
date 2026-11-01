@@ -11,6 +11,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: { '/api': api, '/webhooks': api, '/healthz': api, '/privacy': api },
+    // /api/docs (Swagger UI) dilayani server, bukan SPA.
   },
   test: {
     environment: 'jsdom',

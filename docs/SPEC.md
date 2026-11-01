@@ -335,43 +335,48 @@ GET    /api/admin/webhook-events?status=failed   POST /api/admin/webhook-events/
 
 ### 9.2 Endpoint
 
+Nama field memakai camelCase, sama dengan DTO internal. Contoh lengkap ada di [API.md](API.md).
+
 ```
 POST /api/v1/messages              scope messages:send   header Idempotency-Key (disarankan)
-  { "to": "6281234567890",
+  { "to": "0812…" | "62812…" | "+62 812…",
     "type": "text" | "template" | "image" | "document" | "audio" | "video",
     "text": "…",
-    "template": { "name": "…", "language": "id", "body_params": ["…"], "components": [...] },
-    "media": { "media_id": "<dari POST /api/v1/media>" | "link": "https://…", "caption": "…", "filename": "…" },
-    "reply_to": "<id pesan internal atau wamid>",
-    "client_ref": "ID-sistem-pemanggil" }
-  → 202 { data: { id, wamid, status, conversation_id } }
-  Error: 422 window_closed · 422 template_not_found · 400 invalid_recipient · 502 meta_error{meta_code}
+    "template": { "name": "…", "language": "id", "params": { "header": {…}, "body": { "1": "…" }, "buttons": {…}, "headerMediaId": "…" } },
+    "media": { "mediaId": "<dari POST /api/v1/media>" | "link": "https://…", "caption": "…", "filename": "…" },
+    "replyTo": "<id pesan internal atau wamid>",
+    "clientRef": "ID-sistem-pemanggil (dikembalikan apa adanya)" }
+  → 202 { data: { id, wamid, status, conversationId, clientRef } }
+  Error: 422 window_closed · 404 template_not_found · 400 invalid_phone · 422/502 meta_error {metaCode, messageId}
 GET  /api/v1/messages/:id            scope messages:read
-GET  /api/v1/conversations?q=&unread=&cursor=          scope conversations:read
-GET  /api/v1/conversations/:id/messages?before=&limit= scope messages:read
-GET  /api/v1/contacts/:wa_id         scope conversations:read
-GET  /api/v1/templates?status=APPROVED                 scope templates:read
-POST /api/v1/media  (multipart)      scope media:write → { data: { media_id } }
-GET  /api/v1/media/:id               scope messages:read
+GET  /api/v1/conversations?filter=all|unread|open&q=&cursor=  scope conversations:read → { data, nextCursor }
+GET  /api/v1/conversations/:id/messages?before=&limit=        scope messages:read → { data, hasMore }
+GET  /api/v1/contacts/:waId          scope conversations:read (nomor boleh format 08…)
+GET  /api/v1/templates?status=APPROVED                        scope templates:read
+POST /api/v1/media  (multipart, field "file")                 scope media:write → { data: { mediaId, … } }
+GET  /api/v1/media/:id               scope messages:read (selalu sebagai lampiran)
 ```
 
 Pesan yang dikirim lewat API muncul di inbox UI dengan label "API: <nama key>".
 
 **Idempotensi:** kombinasi `(api_key_id, Idempotency-Key)` disimpan 24 jam.
-- Request ulang dengan body sama → respons yang tersimpan dikembalikan.
-- Request ulang dengan body berbeda → 409.
+- Request ulang dengan body sama → respons tersimpan dikembalikan dengan header `Idempotent-Replayed: true`.
+- Request ulang dengan body berbeda → 409 `idempotency_conflict`.
+- Request yang masih diproses → 409 `idempotency_in_progress`.
 
 ### 9.3 Webhook keluar
 
-- Event: `message.received`, `message.sent` (dari UI maupun API), `message.status`.
-- Body: `{"id":"<ULID>","type":"message.received","created_at":"…","data":{message, conversation, contact}}`.
+- Event: `message.received`, `message.sent` (dari UI maupun API), `message.status` (hanya saat status pesan keluar berubah). Event uji: `ping`.
+- Body: `{"id":"<ULID event>","type":"message.received","createdAt":"…","data":{"message":{…},"conversation":{…}}}`. Untuk `message.status`, `data` hanya berisi `message`.
 - Header:
   - `X-WaInbox-Event`
-  - `X-WaInbox-Delivery` (ULID)
+  - `X-WaInbox-Delivery` (ID delivery)
   - `X-WaInbox-Timestamp` (unix detik)
   - `X-WaInbox-Signature: sha256=<hex(HMAC_SHA256(secret, timestamp + "." + body))>`
-- Penerima wajib membalas 2xx dalam 10 detik. Jika gagal, retry setelah 1 mnt, 5 mnt, 30 mnt, 2 jam, 6 jam, 24 jam, lalu dinyatakan `failed`. Setelah 50 kegagalan beruntun, webhook dinonaktifkan otomatis dan admin diberi tahu.
-- UI admin: daftar delivery (status, kode respons, cuplikan body) dan tombol kirim ulang.
+- Secret (`whsec_…`) ditampilkan sekali saat dibuat atau diganti.
+- Penerima wajib membalas 2xx dalam 10 detik. Jika gagal, retry setelah 1 mnt, 5 mnt, 30 mnt, 2 jam, 6 jam, 24 jam, lalu dinyatakan `failed`. Setelah 50 delivery gagal total, webhook dinonaktifkan otomatis.
+- Di produksi URL wajib HTTPS.
+- UI admin: daftar delivery (status, kode respons, cuplikan body), kirim ulang, kirim event uji.
 
 ## 10. Frontend
 

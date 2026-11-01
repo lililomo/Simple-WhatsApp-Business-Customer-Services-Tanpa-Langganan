@@ -5,6 +5,7 @@ import { LoginPage } from './features/auth/LoginPage';
 import { RequireAuth } from './features/auth/RequireAuth';
 import { ChatsPage } from './features/chats/ChatsPage';
 import { WhatsAppSettingsPage } from './features/connection/WhatsAppSettingsPage';
+import { ApiSettingsPage } from './features/settings/ApiSettingsPage';
 import { ProfilePage } from './features/settings/ProfilePage';
 import { SettingsLayout } from './features/settings/SettingsLayout';
 import { UsersPage } from './features/settings/UsersPage';
@@ -48,7 +49,7 @@ export const router = createBrowserRouter([
             path: 'api',
             element: (
               <RequireAuth admin>
-                <EmptyState title="API & Webhook">Segera hadir.</EmptyState>
+                <ApiSettingsPage />
               </RequireAuth>
             ),
           },

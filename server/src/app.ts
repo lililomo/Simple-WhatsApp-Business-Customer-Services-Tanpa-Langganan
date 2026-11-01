@@ -2,7 +2,13 @@ import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import { serializerCompiler, validatorCompiler, type ZodTypeProvider } from 'fastify-type-provider-zod';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
+import { jsonSchemaTransform, serializerCompiler, validatorCompiler, type ZodTypeProvider } from 'fastify-type-provider-zod';
+import { apiKeyRoutes } from './modules/api-keys/routes';
+import { apiV1Routes } from './modules/api-v1/routes';
+import { requireAdminHook } from './modules/auth/plugin';
+import { outboundWebhookRoutes } from './modules/webhook-out/routes';
 import type { Health } from '@wa/shared';
 import { errorHandler } from './lib/error-handler';
 import { AppError } from './lib/errors';
@@ -67,6 +73,21 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
   await app.register(multipart, { limits: { fileSize: deps.config.MAX_UPLOAD_MB * 1024 * 1024, files: 1, fields: 5 } });
   await app.register(authPlugin);
 
+  // Dokumentasi OpenAPI hanya untuk route API v1 (yang diberi tag); UI-nya khusus admin yang login.
+  await app.register(swagger, {
+    openapi: {
+      info: {
+        title: 'WA Inbox API',
+        version: '1',
+        description: 'REST API untuk integrasi sistem lain. Autentikasi: `Authorization: Bearer wai_…` (API key dari Pengaturan → API & Webhook).',
+      },
+      components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
+    },
+    transform: jsonSchemaTransform,
+    hideUntagged: true,
+  });
+  await app.register(swaggerUi, { routePrefix: '/api/docs', uiHooks: { preHandler: requireAdminHook }, staticCSP: true });
+
   app.get('/healthz', async (): Promise<Health> => ({
     ok: true,
     version: APP_VERSION,
@@ -85,6 +106,9 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
   await app.register(realtimeRoutes, { prefix: '/api' });
   await app.register(mediaRoutes, { prefix: '/api/media' });
   await app.register(adminRoutes, { prefix: '/api/admin' });
+  await app.register(apiKeyRoutes, { prefix: '/api/api-keys' });
+  await app.register(outboundWebhookRoutes, { prefix: '/api/outbound-webhooks' });
+  await app.register(apiV1Routes, { prefix: '/api/v1' });
   await app.register(webhookInRoutes, { prefix: '/webhooks' });
   await registerSpa(app, opts.webDistDir);
 
