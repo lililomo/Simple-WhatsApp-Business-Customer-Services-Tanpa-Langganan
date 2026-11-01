@@ -205,16 +205,17 @@ export async function checkConnection(deps: AppDeps, account: WaAccount): Promis
     }
 
     const onCloud = phone.platform_type === 'CLOUD_API';
-    const verified = phone.code_verification_status === 'VERIFIED' || phone.code_verification_status === undefined;
+    // code_verification_status hanya relevan saat mendaftarkan nomor; nomor lama yang sudah CONNECTED wajar berstatus EXPIRED.
+    const connected = phone.status === undefined || phone.status === 'CONNECTED';
     items.push({
       key: 'phone',
       ok: onCloud,
-      warning: onCloud && !verified,
+      warning: onCloud && !connected,
       message: !onCloud
         ? `Nomor belum terdaftar di Cloud API (platform: ${phone.platform_type ?? 'tidak diketahui'}). Daftarkan dengan PIN.`
-        : !verified
-          ? `Nomor aktif di Cloud API, verifikasi kode: ${phone.code_verification_status}.`
-          : `Nomor aktif di Cloud API${phone.status ? ` (status ${phone.status})` : ''}.`,
+        : connected
+          ? `Nomor aktif di Cloud API${phone.status ? ` (status ${phone.status})` : ''}.`
+          : `Nomor terdaftar di Cloud API tetapi berstatus ${phone.status}. Periksa di WhatsApp Manager.`,
     });
   }
 

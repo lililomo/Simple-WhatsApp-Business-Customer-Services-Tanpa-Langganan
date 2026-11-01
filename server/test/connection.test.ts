@@ -155,7 +155,8 @@ describe('connection API', () => {
   it('checks the connection and subscribes the app to the WABA', async () => {
     const g = happyGraph({
       [`GET ${PHONE}`]: () => ({
-        json: { id: PHONE, display_phone_number: '+62 812-200-627', platform_type: 'CLOUD_API', code_verification_status: 'VERIFIED', status: 'CONNECTED' },
+        // Nomor lama yang sudah CONNECTED biasanya berstatus verifikasi EXPIRED (seperti nomor produksi); itu bukan masalah.
+        json: { id: PHONE, display_phone_number: '+62 812-200-627', platform_type: 'CLOUD_API', code_verification_status: 'EXPIRED', status: 'CONNECTED' },
       }),
       [`POST ${WABA}/subscribed_apps`]: () => ({ json: { success: true } }),
       [`GET ${WABA}/subscribed_apps`]: () => ({ json: { data: [{ whatsapp_business_api_data: { id: APP_ID, name: 'WA Inbox' } }] } }),
@@ -166,6 +167,7 @@ describe('connection API', () => {
     expect(res.statusCode).toBe(200);
     const items = Object.fromEntries((res.json().items as { key: string; ok: boolean }[]).map((i) => [i.key, i.ok]));
     expect(items).toEqual({ credentials: true, subscription: true, phone: true, webhook: false });
+    expect(res.json().items.find((i: { key: string }) => i.key === 'phone')).toMatchObject({ warning: false, message: 'Nomor aktif di Cloud API (status CONNECTED).' });
     expect(res.json().connection.subscribedAt).not.toBeNull();
     expect(g.calls.some((c) => c.method === 'POST' && c.path === `${WABA}/subscribed_apps`)).toBe(true);
   });

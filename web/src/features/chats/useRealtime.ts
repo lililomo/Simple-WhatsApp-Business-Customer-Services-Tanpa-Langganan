@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router';
 import type { RealtimeEvent } from '@wa/shared';
 import { playIncomingSound, showBrowserNotification } from '@/lib/notify';
@@ -22,12 +22,19 @@ export function useRealtime() {
       summaryTimer = setTimeout(() => qc.invalidateQueries({ queryKey: keys.summary }), 300);
     };
 
+    // Fetch yang sedang berjalan dimulai sebelum event ini dan akan menimpa cache saat selesai; ambil ulang.
+    const refetchIfInFlight = (queryKey: QueryKey) => {
+      if (qc.isFetching({ queryKey }) > 0) void qc.invalidateQueries({ queryKey });
+    };
+
     const handle = (raw: MessageEvent<string>) => {
       const event = JSON.parse(raw.data) as RealtimeEvent;
       switch (event.type) {
         case 'message.created': {
           upsertMessage(qc, event.message);
           applyConversation(qc, event.conversation, true);
+          refetchIfInFlight(keys.messages(event.conversation.id));
+          refetchIfInFlight(['conversations']);
           refreshSummary();
           if (event.message.direction === 'in') {
             const viewing = pathRef.current === `/chats/${event.conversation.id}`;
@@ -42,9 +49,11 @@ export function useRealtime() {
         }
         case 'message.updated':
           upsertMessage(qc, event.message);
+          refetchIfInFlight(keys.messages(event.message.conversationId));
           break;
         case 'conversation.updated':
           applyConversation(qc, event.conversation, false);
+          refetchIfInFlight(['conversations']);
           refreshSummary();
           break;
         case 'connection.updated':

@@ -4,7 +4,7 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 
 ## Posisi sekarang
 
-- **Fase:** pembangunan fase 1.
+- **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih berjalan paralel.
 - **Selesai:** Prompt 0 (fondasi repo: npm workspaces shared/server/web, TypeScript 6.0, ESLint 10, Vitest 5, Fastify 5 `/healthz`, Vite 8 + React 19 + Tailwind 4, komponen UI bergaya shadcn di atas `radix-ui`).
 - **Selesai:** Prompt 1 (config zod, skema Drizzle 14 tabel + migrasi `server/drizzle/0000_init.sql`, AES-256-GCM, argon2id, CLI `db:migrate` & `user:create`, test DB).
   - Database `wainbox_dev` dan `wainbox_test` dibuat lewat aaPanel. Akses dari laptop lewat tunnel `ssh -N -L 3307:127.0.0.1:3306 <host>`; kredensial hanya di `.env` lokal.
@@ -28,7 +28,7 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 - **Selesai:** Prompt 6.
   - Server: daftar percakapan (filter, pencarian nama/nomor/isi, nomor `08…` dicocokkan dengan `628…`, cursor); riwayat pesan per halaman; tandai dibaca + satu read receipt ke Meta; ubah nama kontak; ringkasan belum dibaca; SSE `/api/events` dengan heartbeat 20 detik dan cek ulang sesi.
   - Web: layout 2 panel (1 panel di HP), daftar virtual, linimasa virtual dengan muat pesan lama, gelembung per tipe pesan, format teks WhatsApp, status centang, sisa jendela 24 jam, info kontak, notifikasi browser + suara, jumlah belum dibaca di judul tab. Diuji di browser lokal dengan webhook simulasi.
-  - **Belum diverifikasi:** SSE lewat Apache di produksi (butuh login admin produksi).
+  - SSE lewat Apache di produksi terverifikasi di Prompt 11 (SPEC §8).
 - **Selesai:** Prompt 7.
   - Kirim teks, balasan berkutip, dan lampiran: unggah ke Meta dengan validasi jenis/ukuran sesuai batas Meta, simpan salinan lokal.
   - Pengiriman: alur `pending → accepted/failed`, idempoten per `clientRef`; pesan bebas ditolak di luar jendela 24 jam tanpa memanggil Meta; penolakan Meta disimpan sebagai pesan gagal + alasan, dan bisa dicoba ulang; token ditolak → status koneksi error + event real-time.
@@ -58,25 +58,31 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
     - pencarian isi pesan memakai indeks FULLTEXT (migrasi `0001`);
     - API v1 tidak membuat kontak kosong saat ditolak `window_closed`.
   - Disk server 1 Nov 2026: sisa 11 GB (88% terpakai). Aplikasi memakai sekitar 300 MB (3 release ≈ 211 MB, cache npm 82 MB).
+- **Selesai:** Prompt 11 (go-live, 1 Nov 2026). Detail di [GO-LIVE.md](GO-LIVE.md).
+  - Meta App baru dengan use case WhatsApp, system user Admin + token tanpa kedaluwarsa, webhook terverifikasi, app dipublikasikan.
+  - Uji nyata berhasil: pesan masuk, balasan, status centang, gambar, dokumen dua arah, voice note, reaksi, sinkron template. Kirim template belum diuji (berbayar).
+  - SSE produksi terverifikasi (SPEC §8).
+  - Perbaikan dari uji:
+    - "Cek koneksi" tidak lagi memperingatkan `code_verification_status` EXPIRED pada nomor yang CONNECTED;
+    - linimasa menggulir ke pesan terbaru saat tab terlihat lagi, menampilkan tombol "Pesan baru", dan mengulang fetch yang tertimpa event real-time.
 - **Cron aaPanel aktif:** WA Inbox – Watchdog (5 menit), Backup DB wainbox (01:00, simpan 7), WA Inbox – Sinkron template (30 menit), WA Inbox – Housekeeping (02:30).
-- **Langkah berikutnya:** Prompt 11 (go-live dengan Meta). Butuh pemilik untuk:
-  1. membuat admin produksi;
-  2. menyiapkan Meta App + system user token (SPEC §14).
-- **Belum diverifikasi:** SSE lewat Apache di produksi (setelah admin produksi ada).
+- **Langkah berikutnya:**
+  1. Kantor melengkapi bagian [PERLU DISETUJUI] di halaman `/privacy`.
+  2. Fase 2 (prompt pembuka di PROMPTS.md "Setelah fase 1"). Kirimdev dilepas setelah balasan otomatis luar jam layanan tersedia, dan hanya dengan persetujuan pemilik.
 - Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
-- **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
+- **Produksi:** https://wa.kppbwi.app menjalankan aplikasi dari release terbaru (`scripts/deploy.sh`).
 
 ## Infrastruktur yang sudah siap
 
 | Item | Status |
 |---|---|
 | Domain `wa.kppbwi.app` + SSL Let's Encrypt (aaPanel, perpanjangan otomatis) | Aktif, Force HTTPS |
-| Node project aaPanel `wa_kppbwi_app` (port 3210, user www, auto-start) | Aktif (placeholder) |
-| Database MariaDB `wainbox` (dibuat lewat aaPanel) | Kosong, kredensial di `.env` server |
+| Node project aaPanel `wa_kppbwi_app` (port 3210, user www, auto-start) | Aktif (aplikasi) |
+| Database MariaDB `wainbox` (dibuat lewat aaPanel) | Aktif, kredensial di `.env` server |
 | `deploy/server/bin/restart.sh` (restart Node project lewat aaPanel) | Teruji |
-| Pipeline deploy laptop → server | **Belum**, dibuat di Prompt 3 |
-| Database dev `wainbox_dev` | **Belum**, dibuat di Prompt 1 |
-| Meta App + system user token | **Belum**, ikuti SPEC §14 (Prompt 11) |
+| Pipeline deploy laptop → server | Aktif (Prompt 3) |
+| Database dev `wainbox_dev` + test `wainbox_test` | Aktif (Prompt 1) |
+| Meta App + system user token | Aktif sejak 1 Nov 2026 (detail di `DEPLOYMENT.local.md`) |
 
 ## Log keputusan
 
@@ -104,4 +110,5 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 ## Kendala terbuka
 
 - Disk server tinggal sekitar 11 GB. Batasi release, log, backup, dan retensi media.
-- Perlu dicek: apakah Meta App lama milik kantor bisa dipakai ulang (catatan di `DEPLOYMENT.local.md`).
+- Halaman `/privacy` masih draf; bagian [PERLU DISETUJUI] menunggu kantor.
+- Business verification di Meta masih "In progress".

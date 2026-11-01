@@ -531,15 +531,18 @@ Cron dibuat lewat UI aaPanel atau `btpython` (`crontab.crontab().AddCrontab`). N
 2. **developers.facebook.com** → Create App → use case *Connect with customers through WhatsApp* → pilih business portfolio KPP. Bisa juga memakai ulang Meta App lama, jika ada.
 3. App settings → Basic:
    - catat **App ID** dan **App Secret**;
-   - isi Privacy Policy URL `https://wa.kppbwi.app/privacy`, ikon, dan kategori;
-   - ubah app ke mode **Live**. Sebagian webhook tidak dikirim saat Development mode. **Tidak perlu App Review.**
+   - isi Privacy Policy URL `https://wa.kppbwi.app/privacy` (juga dipakai untuk Terms dan Data deletion instructions URL), kategori, dan email kontak. Ikon opsional.
 4. Business Settings → Users → **System users** → tambah (role Admin):
    - Assign assets: App (full control) dan WhatsApp account (full control);
    - Generate token: pilih App, expiration **Never**, permission `whatsapp_business_messaging` + `whatsapp_business_management`;
    - salin token (hanya tampil sekali).
 5. Di WA Inbox → Pengaturan → WhatsApp: masukkan App ID, App Secret, WABA ID, dan token → pilih nomor → salin Callback URL & Verify Token.
-6. Meta App → WhatsApp → Configuration → Webhook:
+6. Meta App → Use cases → Customize (*Connect on WhatsApp*) → **Step 2. Production setup → Configure Webhooks**:
    - tempel Callback URL & Verify Token → **Verify and save**;
    - subscribe field `messages`, `message_template_status_update`, `template_category_update`, `message_template_quality_update`, `account_update`, `phone_number_quality_update`.
-7. Kembali ke WA Inbox → **Cek koneksi** (melakukan subscribe app ke WABA) → kirim pesan dari HP ke nomor kantor → pesan muncul di inbox.
-8. Metode pembayaran WABA sudah ada (dipakai Kirimdev). Cek di WhatsApp Manager → Overview.
+7. Menu **Publish** → Publish. Selama app belum dipublikasikan, Meta hanya mengirim webhook uji dari dashboard, bukan pesan nyata. **Tidak perlu App Review.**
+8. Kembali ke WA Inbox → **Cek koneksi** (melakukan subscribe app ke WABA) → kirim pesan dari HP ke nomor kantor → pesan muncul di inbox.
+   - Status verifikasi kode `EXPIRED` pada nomor yang sudah CONNECTED itu wajar; OTP hanya diperlukan bila nomor didaftarkan ulang.
+9. Metode pembayaran WABA sudah ada (dipakai Kirimdev). Cek di WhatsApp Manager → Overview.
+
+Hasil go-live 1 Nov 2026: [GO-LIVE.md](GO-LIVE.md).
