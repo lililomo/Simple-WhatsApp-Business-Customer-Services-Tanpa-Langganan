@@ -25,7 +25,11 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
   - Unduh media ke `STORAGE_DIR`, dilayani dengan CSP sandbox.
   - Admin bisa melihat dan memproses ulang webhook yang gagal.
   - Uji lokal: `npm run simulate -- text "..."`.
-- **Langkah berikutnya:** Prompt 6 di [PROMPTS.md](PROMPTS.md).
+- **Selesai:** Prompt 6.
+  - Server: daftar percakapan (filter, pencarian nama/nomor/isi, nomor `08…` dicocokkan dengan `628…`, cursor); riwayat pesan per halaman; tandai dibaca + satu read receipt ke Meta; ubah nama kontak; ringkasan belum dibaca; SSE `/api/events` dengan heartbeat 20 detik dan cek ulang sesi.
+  - Web: layout 2 panel (1 panel di HP), daftar virtual, linimasa virtual dengan muat pesan lama, gelembung per tipe pesan, format teks WhatsApp, status centang, sisa jendela 24 jam, info kontak, notifikasi browser + suara, jumlah belum dibaca di judul tab. Diuji di browser lokal dengan webhook simulasi.
+  - **Belum diverifikasi:** SSE lewat Apache di produksi (butuh login admin produksi).
+- **Langkah berikutnya:** Prompt 7 di [PROMPTS.md](PROMPTS.md).
 - Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
 - **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
 

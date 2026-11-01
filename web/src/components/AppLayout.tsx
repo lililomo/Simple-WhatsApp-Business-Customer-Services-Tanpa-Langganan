@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { useInboxSummary } from '@/features/chats/queries';
+import { useRealtime } from '@/features/chats/useRealtime';
 import { NavLink, Outlet } from 'react-router';
 import { LogOut, MessageCircle, Moon, Settings, Sun } from 'lucide-react';
 import { useLogout, useMe } from '@/features/auth/hooks';
@@ -37,6 +39,12 @@ function RailLink({ to, label, children }: { to: string; label: string; children
 
 export function AppLayout() {
   const { data: user } = useMe();
+  useRealtime();
+  const { data: summary } = useInboxSummary();
+  const unread = summary?.unreadConversations ?? 0;
+  useEffect(() => {
+    document.title = unread > 0 ? `(${unread}) WA Inbox` : 'WA Inbox';
+  }, [unread]);
   const logout = useLogout();
   const { theme, toggle } = useTheme();
   const initials = (user?.name ?? '?')
@@ -53,7 +61,14 @@ export function AppLayout() {
           <MessageCircle className="size-5" />
         </div>
         <RailLink to="/chats" label="Chat">
-          <MessageCircle className="size-5" />
+          <span className="relative">
+            <MessageCircle className="size-5" />
+            {unread > 0 && (
+              <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                {unread > 99 ? '99+' : unread}
+              </span>
+            )}
+          </span>
         </RailLink>
         <RailLink to="/settings" label="Pengaturan">
           <Settings className="size-5" />

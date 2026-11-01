@@ -12,6 +12,8 @@ import { authRoutes } from './modules/auth/routes';
 import { connectionRoutes } from './modules/connection/routes';
 import { adminRoutes } from './modules/admin/routes';
 import { mediaRoutes } from './modules/media/routes';
+import { contactRoutes, conversationRoutes } from './modules/conversations/routes';
+import { realtimeRoutes } from './modules/realtime/routes';
 import { webhookInRoutes } from './modules/webhook-in/routes';
 import { userRoutes } from './modules/users/routes';
 import { registerSpa } from './spa';
@@ -28,6 +30,8 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
     logger: opts.logger === false ? false : loggerOptions(deps.config.LOG_LEVEL),
     trustProxy: true,
     bodyLimit: 1024 * 1024,
+    // Koneksi SSE yang terbuka tidak boleh menahan restart.
+    forceCloseConnections: true,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
@@ -68,6 +72,9 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(userRoutes, { prefix: '/api/users' });
   await app.register(connectionRoutes, { prefix: '/api/connection' });
+  await app.register(conversationRoutes, { prefix: '/api/conversations' });
+  await app.register(contactRoutes, { prefix: '/api/contacts' });
+  await app.register(realtimeRoutes, { prefix: '/api' });
   await app.register(mediaRoutes, { prefix: '/api/media' });
   await app.register(adminRoutes, { prefix: '/api/admin' });
   await app.register(webhookInRoutes, { prefix: '/webhooks' });
