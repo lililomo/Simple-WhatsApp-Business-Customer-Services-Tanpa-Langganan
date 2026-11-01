@@ -4,8 +4,10 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 
 ## Posisi sekarang
 
-- **Fase:** perencanaan selesai. Kode aplikasi belum dibuat.
-- **Langkah berikutnya:** Prompt 0 di [PROMPTS.md](PROMPTS.md), dikerjakan dari laptop.
+- **Fase:** pembangunan fase 1.
+- **Selesai:** Prompt 0 (fondasi repo: npm workspaces shared/server/web, TypeScript 6.0, ESLint 10, Vitest 5, Fastify 5 `/healthz`, Vite 8 + React 19 + Tailwind 4, komponen UI bergaya shadcn di atas `radix-ui`).
+- **Langkah berikutnya:** Prompt 1 di [PROMPTS.md](PROMPTS.md).
+- Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
 - **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
 
 ## Infrastruktur yang sudah siap
