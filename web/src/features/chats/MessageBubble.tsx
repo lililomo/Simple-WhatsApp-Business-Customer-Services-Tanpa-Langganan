@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, FileText, MapPin, RefreshCw, UserRound } from 'lucide-react';
+import { Bot, Download, FileText, MapPin, RefreshCw, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MessageDTO } from '@wa/shared';
+import { libraryKeys } from '@/features/library/queries';
 import { api, errorMessage } from '@/lib/api';
 import { upsertMessage } from './queries';
 import { formatTime } from '@/lib/format';
@@ -144,28 +145,55 @@ function FailedNotice({ message }: { message: MessageDTO }) {
   );
 }
 
+/** Simpan stiker dari pesan (mis. kiriman warga) ke koleksi stiker bersama. */
+function SaveStickerButton({ message }: { message: MessageDTO }) {
+  const qc = useQueryClient();
+  const save = useMutation({
+    mutationFn: () => api(`/api/stickers/from-message/${message.id}`, { method: 'POST' }),
+    onSuccess: () => {
+      toast.success('Stiker disimpan ke koleksi.');
+      qc.invalidateQueries({ queryKey: libraryKeys.stickers });
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+  if (message.media?.status !== 'ready' || message.id.startsWith('tmp-')) return null;
+  return (
+    <button disabled={save.isPending} onClick={() => save.mutate()} className="rounded bg-background/90 px-1.5 text-[11px] text-muted-foreground shadow-sm hover:text-foreground">
+      Simpan stiker
+    </button>
+  );
+}
+
+function senderLabel(m: MessageDTO): string | null {
+  if (!m.sentBy) return null;
+  return m.sentBy.type === 'api' ? `API: ${m.sentBy.name}` : m.sentBy.name;
+}
+
 export function MessageBubble({ message, onReply }: { message: MessageDTO; onReply?: (m: MessageDTO) => void }) {
   const out = message.direction === 'out';
+  const sticker = message.type === 'sticker';
   return (
     <div className={cn('group flex px-3 py-0.5 md:px-6', out ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
-          'relative max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm md:max-w-[65%]',
-          out ? 'rounded-tr-sm bg-bubble-out' : 'rounded-tl-sm bg-bubble-in',
+          'relative max-w-[85%] rounded-xl px-2.5 py-1.5 text-sm md:max-w-[65%]',
+          // Stiker tampil tanpa gelembung, seperti di WhatsApp.
+          sticker ? 'bg-transparent shadow-none' : out ? 'rounded-tr-sm bg-bubble-out shadow-sm' : 'rounded-tl-sm bg-bubble-in shadow-sm',
           message.reactionEmoji && 'mb-3',
         )}
         onDoubleClick={() => onReply?.(message)}
       >
         {message.replyTo && (
-          <div className={cn('mb-1 rounded border-l-4 bg-black/5 px-2 py-1 text-xs dark:bg-white/10', message.replyTo.direction === 'out' ? 'border-primary' : 'border-sky-500')}>
+          <div className={cn('mb-1 rounded-md border-l-4 bg-black/5 px-2 py-1 text-xs dark:bg-white/10', message.replyTo.direction === 'out' ? 'border-gold' : 'border-primary/60')}>
             <div className="font-medium">{message.replyTo.direction === 'out' ? 'Anda' : 'Kontak'}</div>
             <div className="line-clamp-2 text-muted-foreground">{message.replyTo.preview ?? 'Pesan tidak tersedia'}</div>
           </div>
         )}
         {message.templateName && <div className="text-[11px] font-medium text-muted-foreground">Template · {message.templateName}</div>}
         <Body message={message} />
-        <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-muted-foreground">
-          {out && message.sentBy && <span className="mr-1 truncate">{message.sentBy.type === 'api' ? `API: ${message.sentBy.name}` : message.sentBy.name}</span>}
+        <div className={cn('mt-0.5 flex items-center justify-end gap-1 text-[11px] text-muted-foreground', sticker && 'w-fit self-end rounded-full bg-background/80 px-1.5 ml-auto')}>
+          {out && message.sentBy?.type === 'system' && <Bot className="size-3" />}
+          {out && senderLabel(message) && <span className="mr-1 truncate">{senderLabel(message)}</span>}
           <span>{formatTime(message.timestamp)}</span>
           {out && <StatusTicks status={message.status} />}
         </div>
@@ -173,14 +201,14 @@ export function MessageBubble({ message, onReply }: { message: MessageDTO; onRep
         {message.reactionEmoji && (
           <span className="absolute -bottom-3.5 left-2 rounded-full border bg-background px-1 text-sm shadow-sm">{message.reactionEmoji}</span>
         )}
-        {onReply && (
-          <button
-            onClick={() => onReply(message)}
-            className="absolute top-1 right-1 hidden rounded bg-background/80 px-1.5 text-[11px] text-muted-foreground group-hover:block"
-          >
-            Balas
-          </button>
-        )}
+        <div className="absolute top-1 right-1 hidden gap-1 group-hover:flex">
+          {sticker && <SaveStickerButton message={message} />}
+          {onReply && (
+            <button onClick={() => onReply(message)} className="rounded bg-background/90 px-1.5 text-[11px] text-muted-foreground shadow-sm hover:text-foreground">
+              Balas
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

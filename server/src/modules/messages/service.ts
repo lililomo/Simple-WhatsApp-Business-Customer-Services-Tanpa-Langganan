@@ -11,6 +11,8 @@ import { loadConversation, loadMessage } from '../conversations/dto';
 export interface Actor {
   userId?: number;
   apiKeyId?: number;
+  /** Pengirim otomatis aplikasi, mis. 'auto_reply'. */
+  system?: string;
   ip?: string;
 }
 
@@ -96,6 +98,7 @@ export async function sendToConversation(
     templateLanguage: spec.templateLanguage ?? null,
     sentByUserId: actor.userId ?? null,
     sentByApiKeyId: actor.apiKeyId ?? null,
+    sentBySystem: actor.system ?? null,
     clientRef: opts.clientRef ?? null,
     waTimestamp: now,
   });

@@ -12,7 +12,7 @@ export interface MediaDTO {
 }
 
 export interface SenderDTO {
-  type: 'user' | 'api';
+  type: 'user' | 'api' | 'system';
   id: string;
   name: string;
 }
@@ -69,7 +69,11 @@ export type RealtimeEvent =
   | { type: 'message.created'; message: MessageDTO; conversation: ConversationDTO }
   | { type: 'message.updated'; message: MessageDTO }
   | { type: 'conversation.updated'; conversation: ConversationDTO }
-  | { type: 'connection.updated' };
+  | { type: 'connection.updated' }
+  /** Data bersama berubah (balasan cepat, stiker, riwayat emoji, jam kerja); browser memuat ulang daftarnya. */
+  | { type: 'library.updated'; resource: SharedResource };
+
+export type SharedResource = 'quick-replies' | 'stickers' | 'emoji' | 'business-hours';
 
 /** Nomor WhatsApp (format internasional tanpa +) menjadi bentuk yang enak dibaca. */
 export function formatWaId(waId: string): string {

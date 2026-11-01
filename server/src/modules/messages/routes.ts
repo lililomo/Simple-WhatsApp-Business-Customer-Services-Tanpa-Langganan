@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { sendMessageBody } from '@wa/shared';
 import type { AppInstance } from '../../types';
 import { requireUser, requireUserHook } from '../auth/plugin';
+import { stickerSpec } from '../stickers/service';
 import { getTemplate, templateSpec } from '../templates/service';
 import { mediaSpec, textSpec } from './build';
 import { retryMessage, sendToConversation } from './service';
@@ -21,7 +22,9 @@ export async function conversationMessageRoutes(app: AppInstance) {
         ? textSpec(body.text)
         : body.type === 'media'
           ? await mediaSpec(deps, Number(body.mediaId), body.caption)
-          : await templateSpec(deps, await getTemplate(deps, Number(body.templateId)), body.params);
+          : body.type === 'sticker'
+            ? await stickerSpec(deps, Number(body.stickerId))
+            : await templateSpec(deps, await getTemplate(deps, Number(body.templateId)), body.params);
     const result = await sendToConversation(deps, req.params.id, spec, { userId: req.user.id, ip: req.ip }, {
       clientRef: body.clientRef,
       replyToMessageId: body.type !== 'template' && body.replyTo ? Number(body.replyTo) : null,

@@ -12,3 +12,6 @@ deploy/deploy.local.env
 
 # Data aplikasi
 storage/
+
+# Bahan referensi lokal (halaman tersimpan, bisa berisi data pribadi); tidak masuk repo publik.
+template_style/

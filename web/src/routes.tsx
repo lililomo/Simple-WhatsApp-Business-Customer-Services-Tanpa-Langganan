@@ -6,6 +6,9 @@ import { RequireAuth } from './features/auth/RequireAuth';
 import { ChatsPage } from './features/chats/ChatsPage';
 import { WhatsAppSettingsPage } from './features/connection/WhatsAppSettingsPage';
 import { ApiSettingsPage } from './features/settings/ApiSettingsPage';
+import { AppearancePage } from './features/settings/AppearancePage';
+import { BusinessHoursPage } from './features/settings/BusinessHoursPage';
+import { QuickRepliesPage } from './features/settings/QuickRepliesPage';
 import { ProfilePage } from './features/settings/ProfilePage';
 import { SettingsLayout } from './features/settings/SettingsLayout';
 import { UsersPage } from './features/settings/UsersPage';
@@ -29,6 +32,16 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/settings/profile" replace /> },
           { path: 'profile', element: <ProfilePage /> },
+          { path: 'appearance', element: <AppearancePage /> },
+          { path: 'quick-replies', element: <QuickRepliesPage /> },
+          {
+            path: 'business-hours',
+            element: (
+              <RequireAuth admin>
+                <BusinessHoursPage />
+              </RequireAuth>
+            ),
+          },
           {
             path: 'users',
             element: (

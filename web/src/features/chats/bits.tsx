@@ -23,7 +23,8 @@ export function initials(name: string): string {
   return (letters || '#').toUpperCase();
 }
 
-const AVATAR_COLORS = ['bg-emerald-600', 'bg-sky-600', 'bg-violet-600', 'bg-amber-600', 'bg-rose-600', 'bg-teal-600', 'bg-indigo-600'];
+// Palet avatar selaras tema (navy, biru, emas tua, ungu, merah bata, hijau toska).
+const AVATAR_COLORS = ['bg-[#212c5f]', 'bg-[#3f7fb5]', 'bg-[#a37a00]', 'bg-[#5b6cb5]', 'bg-[#b85c5c]', 'bg-[#2e8577]', 'bg-[#7a5ea8]'];
 
 export function Avatar({ name, seed, className }: { name: string; seed: string; className?: string }) {
   const color = AVATAR_COLORS[[...seed].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
@@ -69,7 +70,7 @@ export function StatusTicks({ status, className }: { status: MessageStatus; clas
     case 'delivered':
       return <CheckCheck className={cls} aria-label="Diterima" />;
     case 'read':
-      return <CheckCheck className={cn(cls, 'text-sky-500')} aria-label="Dibaca" />;
+      return <CheckCheck className={cn(cls, 'text-tick-read')} aria-label="Dibaca" />;
     case 'failed':
       return <AlertCircle className={cn(cls, 'text-destructive')} aria-label="Gagal" />;
     default:

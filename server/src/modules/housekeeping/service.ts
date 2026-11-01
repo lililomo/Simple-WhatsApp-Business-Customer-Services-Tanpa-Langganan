@@ -1,5 +1,5 @@
 import { unlink } from 'node:fs/promises';
-import { and, eq, inArray, isNotNull, lt, ne, or } from 'drizzle-orm';
+import { and, eq, inArray, like, lt, ne, or } from 'drizzle-orm';
 import { idempotencyKeys, media, outboundWebhookDeliveries, sessions, webhookEvents } from '../../db/schema';
 import type { AppDeps } from '../../types';
 import { mediaAbsolutePath } from '../media/service';
@@ -37,7 +37,8 @@ export async function runHousekeeping(deps: AppDeps, now = new Date()): Promise<
     const old = await db
       .select({ id: media.id, storagePath: media.storagePath })
       .from(media)
-      .where(and(eq(media.status, 'ready'), isNotNull(media.storagePath), lt(media.createdAt, ago(retention))))
+      // Hanya folder media/; file stiker koleksi (stickers/) dipakai ulang dan tidak ikut kedaluwarsa.
+      .where(and(eq(media.status, 'ready'), like(media.storagePath, 'media/%'), lt(media.createdAt, ago(retention))))
       .limit(5000);
     for (const m of old) {
       await unlink(mediaAbsolutePath(deps.config, m.storagePath!)).catch(() => undefined);

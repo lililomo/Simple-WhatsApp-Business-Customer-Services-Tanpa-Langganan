@@ -3,6 +3,7 @@ import { useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router';
 import type { RealtimeEvent } from '@wa/shared';
 import { playIncomingSound, showBrowserNotification } from '@/lib/notify';
+import { pushState } from '@/lib/push';
 import { applyConversation, keys, upsertMessage } from './queries';
 
 /** Sambungan SSE ke /api/events; memperbarui cache TanStack Query dan memberi notifikasi pesan masuk. */
@@ -40,9 +41,12 @@ export function useRealtime() {
             const viewing = pathRef.current === `/chats/${event.conversation.id}`;
             if (document.hidden || !viewing) {
               playIncomingSound();
-              showBrowserNotification(event.conversation.contact.name, event.conversation.lastMessagePreview ?? 'Pesan baru', () =>
-                navigate(`/chats/${event.conversation.id}`),
-              );
+              // Bila Web Push aktif, notifikasi ditampilkan service worker (juga saat tab ditutup); jangan dobel.
+              if (pushState() !== 'on') {
+                showBrowserNotification(event.conversation.contact.name, event.conversation.lastMessagePreview ?? 'Pesan baru', () =>
+                  navigate(`/chats/${event.conversation.id}`),
+                );
+              }
             }
           }
           break;
@@ -59,12 +63,15 @@ export function useRealtime() {
         case 'connection.updated':
           qc.invalidateQueries({ queryKey: ['connection-status'] });
           break;
+        case 'library.updated':
+          qc.invalidateQueries({ queryKey: [event.resource] });
+          break;
       }
     };
 
     const connect = () => {
       source = new EventSource('/api/events');
-      for (const type of ['message.created', 'message.updated', 'conversation.updated', 'connection.updated']) {
+      for (const type of ['message.created', 'message.updated', 'conversation.updated', 'connection.updated', 'library.updated']) {
         source.addEventListener(type, handle as EventListener);
       }
       source.addEventListener('hello', () => {

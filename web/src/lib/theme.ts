@@ -1,46 +1,98 @@
 import { useSyncExternalStore } from 'react';
 
-type Theme = 'light' | 'dark';
-const KEY = 'wa-inbox-theme';
+/**
+ * Preferensi tampilan per browser (tema, ukuran teks, lebar kolom daftar chat). Disimpan di localStorage,
+ * bukan di server, sehingga setiap petugas/perangkat punya pengaturannya sendiri.
+ */
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+export interface Prefs {
+  theme: ThemeMode;
+  /** Ukuran teks dalam persen dari ukuran dasar browser; seluruh UI memakai rem sehingga ikut membesar. */
+  fontScale: number;
+  /** Lebar kolom daftar chat (px) di layar lebar. */
+  listWidth: number;
+}
+
+export const FONT_SCALES = [
+  { value: 87.5, label: 'Kecil' },
+  { value: 100, label: 'Normal' },
+  { value: 112.5, label: 'Besar' },
+  { value: 125, label: 'Sangat besar' },
+] as const;
+
+export const LIST_WIDTH = { min: 260, max: 640, default: 384 };
+
+const KEY = 'wa-inbox-prefs';
+const LEGACY_THEME_KEY = 'wa-inbox-theme';
+const DEFAULTS: Prefs = { theme: 'system', fontScale: 100, listWidth: LIST_WIDTH.default };
 const listeners = new Set<() => void>();
 
-function readStored(): Theme | null {
+function readStored(): Prefs {
   try {
-    const v = localStorage.getItem(KEY);
-    return v === 'light' || v === 'dark' ? v : null;
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Prefs> | null;
+    const legacy = localStorage.getItem(LEGACY_THEME_KEY);
+    const theme = raw?.theme ?? (legacy === 'light' || legacy === 'dark' ? legacy : DEFAULTS.theme);
+    return {
+      theme: ['light', 'dark', 'system'].includes(theme) ? theme : DEFAULTS.theme,
+      fontScale: FONT_SCALES.some((f) => f.value === raw?.fontScale) ? raw!.fontScale! : DEFAULTS.fontScale,
+      listWidth: clampListWidth(raw?.listWidth ?? DEFAULTS.listWidth),
+    };
   } catch {
-    return null;
+    return DEFAULTS;
   }
 }
 
-function systemTheme(): Theme {
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+export function clampListWidth(width: number): number {
+  return Math.round(Math.min(LIST_WIDTH.max, Math.max(LIST_WIDTH.min, width)));
 }
 
-let current: Theme = typeof window === 'undefined' ? 'light' : (readStored() ?? systemTheme());
+const darkQuery = typeof window === 'undefined' ? null : window.matchMedia?.('(prefers-color-scheme: dark)');
+let current: Prefs = typeof window === 'undefined' ? DEFAULTS : readStored();
 
-function setTheme(next: Theme) {
-  current = next;
-  document.documentElement.classList.toggle('dark', next === 'dark');
+export function resolvedTheme(p: Prefs = current): 'light' | 'dark' {
+  return p.theme === 'system' ? (darkQuery?.matches ? 'dark' : 'light') : p.theme;
+}
+
+function apply() {
+  const root = document.documentElement;
+  root.classList.toggle('dark', resolvedTheme() === 'dark');
+  root.style.fontSize = current.fontScale === 100 ? '' : `${current.fontScale}%`;
+}
+
+export function setPrefs(patch: Partial<Prefs>) {
+  current = { ...current, ...patch };
+  apply();
   try {
-    localStorage.setItem(KEY, next);
+    localStorage.setItem(KEY, JSON.stringify(current));
   } catch {
-    // Penyimpanan diblokir: tema tetap berlaku untuk sesi ini saja.
+    // Penyimpanan diblokir: pengaturan tetap berlaku untuk sesi ini saja.
   }
   listeners.forEach((l) => l());
 }
 
 export function applyInitialTheme() {
-  document.documentElement.classList.toggle('dark', current === 'dark');
+  apply();
+  darkQuery?.addEventListener('change', () => {
+    if (current.theme !== 'system') return;
+    apply();
+    listeners.forEach((l) => l());
+  });
 }
 
-export function useTheme() {
-  const theme = useSyncExternalStore(
+export function usePrefs(): Prefs {
+  return useSyncExternalStore(
     (cb) => {
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
     () => current,
   );
-  return { theme, toggle: () => setTheme(theme === 'dark' ? 'light' : 'dark') };
+}
+
+/** Tombol cepat di rail: berganti antara terang dan gelap. */
+export function useTheme() {
+  const prefs = usePrefs();
+  const theme = resolvedTheme(prefs);
+  return { theme, toggle: () => setPrefs({ theme: theme === 'dark' ? 'light' : 'dark' }) };
 }

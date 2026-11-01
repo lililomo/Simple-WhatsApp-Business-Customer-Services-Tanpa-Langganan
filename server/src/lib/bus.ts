@@ -4,7 +4,7 @@ import type { RealtimeEvent } from '@wa/shared';
 /** Event internal satu proses: real-time ke browser (SSE) + sinyal untuk worker. */
 export type BusEvent = RealtimeEvent | { type: 'webhook.stored' } | { type: 'delivery.created' };
 
-const REALTIME_TYPES = new Set(['message.created', 'message.updated', 'conversation.updated', 'connection.updated']);
+const REALTIME_TYPES = new Set(['message.created', 'message.updated', 'conversation.updated', 'connection.updated', 'library.updated']);
 
 /** Event yang boleh diteruskan ke browser (SSE); event internal tidak. */
 export function isRealtimeEvent(event: BusEvent): event is RealtimeEvent {

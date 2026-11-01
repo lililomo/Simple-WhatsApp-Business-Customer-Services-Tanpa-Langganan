@@ -163,6 +163,19 @@ outbound_webhook_deliveries id, webhook_id FK, event_id CHAR(26), event_type, pa
 
 audit_logs       id, actor_user_id, actor_api_key_id, action, target_type, target_id,
                  meta JSON, ip, created_at
+
+app_settings     key PK, value JSON, updated_by, updated_at
+                 (business_hours, holiday_api_key {enc}, holidays_sync, vapid {publicKey, privateKeyEnc})
+quick_replies    id, title, shortcut UQ NULL, body TEXT, usage_count, last_used_at,
+                 created_by, updated_by, created_at, updated_at
+stickers         id, sha256 UQ, storage_path (stickers/<sha>.webp), file_size, animated,
+                 wa_media_id, wa_media_uploaded_at, usage_count, last_used_at, created_by, created_at
+emoji_usage      code PK (kode titik heksadesimal, mis. "1f44d"), usage_count, last_used_at
+holidays         id, date VARCHAR(10), name, type, fetched_at, UQ(date, name)
+auto_reply_log   id, contact_id FK, day (tanggal WIB), message_id, created_at   IDX(contact_id, day)
+push_subscriptions id, user_id FK, session_id FK (CASCADE: ikut terhapus saat logout/sesi habis),
+                 endpoint_hash UQ, endpoint, p256dh, auth, user_agent, last_success_at, created_at
+messages.sent_by_system  'auto_reply' untuk balasan otomatis (ditampilkan "Balasan otomatis")
 ```
 
 Catatan:
@@ -171,6 +184,8 @@ Catatan:
 - `messages.wamid` unik, sehingga webhook ganda tidak menimbulkan duplikasi.
 - Pesan bertipe `reaction` disimpan sebagai baris pesan, tetapi disembunyikan dari linimasa. Emoji reaksi ditulis ke `reaction_emoji` milik pesan target.
 - Meta sedang menyiapkan fitur username WhatsApp. Simpan `contacts.raw` apa adanya, dan cek changelog Meta saat implementasi untuk field identitas pengguna yang baru.
+- Kolom emoji tidak dipakai sebagai kunci teks: collation utf8mb4 *_ci menganggap semua emoji sama. Karena itu `emoji_usage` memakai kode titik heksadesimal.
+- Pelanggaran unique key dikenali lewat `isDuplicateKey()`: Drizzle membungkus error mysql2, sehingga `ER_DUP_ENTRY` ada di `err.cause.code`.
 
 ## 6. Integrasi Meta
 
@@ -310,6 +325,15 @@ GET    /api/events                SSE
 GET/POST/DELETE /api/api-keys     (admin)
 GET/POST/PATCH/DELETE /api/outbound-webhooks   GET /api/outbound-webhooks/:id/deliveries
 GET    /api/admin/webhook-events?status=failed   POST /api/admin/webhook-events/:id/replay
+
+# Data bersama semua petugas (perubahan disiarkan lewat SSE library.updated)
+GET/POST /api/quick-replies        PUT/DELETE /api/quick-replies/:id   POST /api/quick-replies/:id/use
+GET    /api/stickers               POST /api/stickers (multipart WebP 512×512)   DELETE /api/stickers/:id
+POST   /api/stickers/from-message/:messageId     GET /api/stickers/:id/file
+GET    /api/emoji/recent           POST /api/emoji/usage {emojis[]}
+POST   /api/conversations/:id/messages {type:"sticker", stickerId, clientRef}
+GET    /api/business-hours         (semua)   PUT /api/business-hours (admin)   POST /api/business-hours/sync-holidays (admin)
+GET    /api/push/key               POST /api/push/subscribe   POST /api/push/unsubscribe   POST /api/push/test
 ```
 
 ## 8. Real-time (SSE)
@@ -319,7 +343,8 @@ GET    /api/admin/webhook-events?status=failed   POST /api/admin/webhook-events/
   - `Cache-Control: no-cache, no-transform`
   - `X-Accel-Buffering: no`
 - Heartbeat berupa komentar `: ping` setiap 20 detik, agar koneksi tidak diputus proxy Apache.
-- Event: `message.created`, `message.updated`, `conversation.updated`, `connection.updated`. Payload berupa DTO lengkap dari `shared/`, sehingga klien bisa langsung memperbarui cache TanStack Query tanpa fetch ulang.
+- Event: `message.created`, `message.updated`, `conversation.updated`, `connection.updated`, `library.updated` (`resource`: quick-replies | stickers | emoji | business-hours; klien meng-invalidate query dengan kunci yang sama). Payload pesan berupa DTO lengkap dari `shared/`, sehingga klien bisa langsung memperbarui cache TanStack Query tanpa fetch ulang.
+- Bila event datang saat query yang sama sedang di-fetch, klien mengulang fetch itu (hasil fetch lama akan menimpa cache yang baru diperbarui).
 - Setelah reconnect, klien meng-invalidate query percakapan yang terbuka dan daftar percakapan. Pesan yang terlewat terambil dari situ, jadi `Last-Event-ID` tidak diperlukan.
 - **Uji wajib setelah deploy:** `curl -N https://wa.kppbwi.app/api/events` (dengan cookie). Event harus mengalir tanpa tertahan buffer Apache/mod_deflate.
 - **Temuan produksi (1 Nov 2026):** di balik Apache, SSE awalnya tertahan sampai 20 detik.
@@ -393,18 +418,44 @@ Pesan yang dikirim lewat API muncul di inbox UI dengan label "API: <nama key>".
 | `/settings/users` | Kelola petugas (admin) |
 | `/settings/api` | Tab API key, Webhook keluar (+ delivery), link ke `/api/docs` |
 | `/settings/profile` | Ganti password |
+| `/settings/appearance` | Tema (terang/gelap/ikut Windows), ukuran teks, lebar daftar chat, notifikasi Windows. Disimpan di `localStorage` browser, bukan di server |
+| `/settings/quick-replies` | Kelola balasan cepat bersama (semua petugas) |
+| `/settings/business-hours` | Jam kerja, hari libur, balasan otomatis (admin), lihat §15 |
 | `/privacy` | Halaman statis dari server (`server/src/public/privacy.html`), publik |
 
 Komponen inti:
-- `ConversationList` (virtuoso, infinite query);
-- `MessageTimeline` (virtuoso terbalik, pemisah tanggal, `MessageBubble` per tipe, `StatusTicks`);
-- `Composer` (textarea auto-grow, lampiran, reply bar, kunci saat jendela tertutup);
+- `ConversationList` (virtuoso, infinite query); lebar kolomnya bisa digeser (pembatas di `ChatsPage`, klik ganda = lebar awal);
+- `MessageTimeline` (virtuoso terbalik, pemisah tanggal, `MessageBubble` per tipe, `StatusTicks`). Saat tab terlihat lagi menggulir ke pesan terbaru; tombol "Pesan baru" bila pengguna sedang membaca pesan lama;
+- `Composer`:
+  - textarea auto-grow, reply bar, kunci saat jendela tertutup;
+  - `/` di awal kotak memunculkan balasan cepat; variabel `{salam}`, `{nama}`, `{petugas}`;
+  - panel emoji & stiker ala WhatsApp Web (`features/composer`);
+  - lampiran lewat tombol, drag & drop ke area chat, atau tempel (paste);
+- `AttachmentDialog`: pratinjau maks 10 file, keterangan per file, crop/putar foto (react-easy-crop). Gambar non-JPG/PNG atau > 5 MB diubah ke JPEG di browser;
+- `EmojiStickerPanel`:
+  - data emojibase (label Inggris + Melayu untuk pencarian), emoji > versi 15 disembunyikan;
+  - bendera di Windows lewat font Twemoji Country Flags yang di-host sendiri;
+  - stiker dibuat di browser: crop persegi → WebP 512×512 ≤ 100 KB;
 - `TemplatePicker` (dialog: pilih template, isi variabel, preview);
-- `ConnectionBanner`.
+- `ConnectionBanner`, `NotificationPrompt`.
 
-State: TanStack Query sebagai sumber data, `lib/sse.ts` memperbarui cache. Optimistic send memakai `client_ref` (UUID) yang dicocokkan saat event `message.created` atau `message.updated` datang.
+State: TanStack Query sebagai sumber data, `useRealtime` memperbarui cache. Optimistic send memakai `client_ref` (UUID) yang dicocokkan saat event `message.created` atau `message.updated` datang.
 
-Notifikasi: `Notification` API + suara singkat (`/sounds/incoming.mp3`), hanya saat tab tidak fokus atau chat tersebut tidak sedang dibuka. Judul tab: `(3) WA Inbox`.
+Notifikasi:
+- **Suara:** saat tab tidak fokus atau chat tersebut tidak sedang dibuka.
+- **Web Push (notifikasi Windows):**
+  - dipilih karena tetap muncul walau tab ditutup, selama browser berjalan dan sesi login di browser itu masih berlaku;
+  - langganan per browser diikat ke sesi; logout atau sesi habis otomatis menghentikannya;
+  - kunci VAPID dibuat otomatis dan disimpan terenkripsi di `app_settings`;
+  - `public/sw.js` tidak menampilkan notifikasi bila tab yang terfokus sedang membuka percakapan yang sama;
+  - tanpa Web Push, halaman memakai `Notification` biasa.
+- **Judul tab:** `(3) WA Inbox`.
+
+Tema mengikuti gaya Coretax DJP:
+- **Warna:** navy `#212C5F` (utama), emas `#FFC91B` (aksen, item aktif, badge), latar krem `#F5F4EF`, teks `#131B44`;
+- **Mode gelap:** navy pekat dengan aksen emas;
+- **Font:** Plus Jakarta Sans (di-host sendiri lewat @fontsource);
+- **Token:** didefinisikan di `web/src/index.css`.
 
 ## 11. Keamanan
 
@@ -546,3 +597,25 @@ Cron dibuat lewat UI aaPanel atau `btpython` (`crontab.crontab().AddCrontab`). N
 9. Metode pembayaran WABA sudah ada (dipakai Kirimdev). Cek di WhatsApp Manager → Overview.
 
 Hasil go-live 1 Nov 2026: [GO-LIVE.md](GO-LIVE.md).
+
+## 15. Jam kerja, hari libur & balasan otomatis
+
+- **Pengaturan** (`app_settings.business_hours`, admin):
+  - jam mulai–selesai per hari dalam WIB (jam selesai tidak termasuk);
+  - hari libur nasional dianggap libur atau hari kerja;
+  - cuti bersama ikut libur atau tidak;
+  - teks balasan otomatis + mode.
+- **Hari libur** dari api.co.id: `GET https://use.api.co.id/holidays/indonesia/?year=&page=` dengan header `x-api-co-id`.
+  - API-nya gratis, tetapi wajib API key. Key disimpan terenkripsi.
+  - Tahun ini dan tahun depan disalin ke tabel `holidays`, saat key disimpan dan setiap hari lewat CLI `housekeeping`.
+  - Bila API gagal atau mengembalikan kosong, data lama tetap dipakai dan pesan errornya ditampilkan di UI.
+  - Tipe `Public Holiday`/`National Holiday` = libur; `Joint Holiday` = sesuai pengaturan cuti bersama; `Observance` = bukan libur.
+- **Balasan otomatis:**
+  - dikirim prosesor webhook untuk pesan masuk *baru* (bukan reaksi/system/unsupported) yang waktunya di luar jam kerja;
+  - pesan yang sudah lebih dari 15 menit (antrean tertunda) tidak dibalas;
+  - mode `daily`: sekali per nomor per tanggal WIB;
+  - mode `every`: setiap pesan, dengan jeda minimal 1 menit per nomor agar rentetan pesan cukup dibalas sekali;
+  - dicatat di `auto_reply_log` *sebelum* dikirim dan tidak pernah di-retry, sehingga tidak pernah terkirim ganda;
+  - variabel: `{salam}`, `{nama}`, `{jam_kerja}`;
+  - pesan tampil di inbox dengan pengirim "Balasan otomatis";
+  - selama Kirimdev masih aktif dengan balasan otomatisnya sendiri, hanya satu yang boleh dinyalakan.

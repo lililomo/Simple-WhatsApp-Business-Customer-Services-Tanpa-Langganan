@@ -17,6 +17,8 @@ export interface AppDeps {
   bus: EventBus;
   /** fetch untuk Graph API; diganti mock di test. */
   fetch?: typeof fetch;
+  /** Logger aplikasi untuk pekerjaan di luar request (worker); diisi setelah app dibuat. */
+  log?: Pick<FastifyBaseLogger, 'warn' | 'error'>;
 }
 
 export type AppInstance = FastifyInstance<

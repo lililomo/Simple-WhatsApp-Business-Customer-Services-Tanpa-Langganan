@@ -1,61 +1,84 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/plus-jakarta-sans/wght.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Tema mengikuti gaya Coretax DJP: navy #212C5F sebagai warna utama, emas #FFC91B sebagai aksen,
+ * latar krem hangat, teks navy tua, sudut membulat lebar. Mode gelap memakai navy pekat dengan aksen emas.
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.527 0.154 150.069);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.962 0.018 160);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.627 0.154 150);
-  --bubble-in: oklch(1 0 0);
-  --bubble-out: oklch(0.95 0.06 150);
-  --chat-bg: oklch(0.96 0.01 90);
+  --radius: 0.75rem;
+  --background: #f5f4ef;
+  --foreground: #131b44;
+  --card: #ffffff;
+  --card-foreground: #131b44;
+  --popover: #ffffff;
+  --popover-foreground: #131b44;
+  --primary: #212c5f;
+  --primary-foreground: #ffffff;
+  --secondary: #eceef5;
+  --secondary-foreground: #212c5f;
+  --muted: #f1efe8;
+  --muted-foreground: #6b7294;
+  --accent: #f6f3ea;
+  --accent-foreground: #131b44;
+  --destructive: #c53b3b;
+  --border: rgb(33 44 95 / 0.12);
+  --input: rgb(33 44 95 / 0.2);
+  --ring: #dba800;
+  --gold: #ffc91b;
+  --gold-hover: #f0b800;
+  --gold-foreground: #131b44;
+  --gold-soft: #fffbe6;
+  --rail: #212c5f;
+  --rail-foreground: #b5b9ca;
+  --bubble-in: #ffffff;
+  --bubble-out: #fff3c4;
+  --chat-bg: #efebe1;
+  --chat-pattern: rgb(33 44 95 / 0.035);
+  --tick-read: #2f80c9;
 }
 
 .dark {
-  --background: oklch(0.17 0.005 160);
-  --foreground: oklch(0.96 0 0);
-  --card: oklch(0.21 0.006 160);
-  --card-foreground: oklch(0.96 0 0);
-  --popover: oklch(0.21 0.006 160);
-  --popover-foreground: oklch(0.96 0 0);
-  --primary: oklch(0.696 0.17 150);
-  --primary-foreground: oklch(0.17 0.005 160);
-  --secondary: oklch(0.27 0.006 160);
-  --secondary-foreground: oklch(0.96 0 0);
-  --muted: oklch(0.27 0.006 160);
-  --muted-foreground: oklch(0.71 0 0);
-  --accent: oklch(0.3 0.03 160);
-  --accent-foreground: oklch(0.96 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0.12 150);
-  --bubble-in: oklch(0.25 0.006 160);
-  --bubble-out: oklch(0.36 0.07 155);
-  --chat-bg: oklch(0.14 0.005 160);
+  --background: #0d1230;
+  --foreground: #eceef6;
+  --card: #151b3f;
+  --card-foreground: #eceef6;
+  --popover: #1b2250;
+  --popover-foreground: #eceef6;
+  --primary: #ffc91b;
+  --primary-foreground: #131b44;
+  --secondary: #222a5c;
+  --secondary-foreground: #eceef6;
+  --muted: #1a2149;
+  --muted-foreground: #9aa0bd;
+  --accent: #212959;
+  --accent-foreground: #eceef6;
+  --destructive: #f07171;
+  --border: rgb(255 255 255 / 0.09);
+  --input: rgb(255 255 255 / 0.16);
+  --ring: #ffc91b;
+  --gold: #ffc91b;
+  --gold-hover: #ffd241;
+  --gold-foreground: #131b44;
+  --gold-soft: rgb(255 201 27 / 0.12);
+  --rail: #090d24;
+  --rail-foreground: #8b91b0;
+  --bubble-in: #1d2453;
+  --bubble-out: #2d3878;
+  --chat-bg: #0b1029;
+  --chat-pattern: rgb(255 255 255 / 0.025);
+  --tick-read: #6cb6ff;
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --font-sans: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, 'Segoe UI', sans-serif, 'Twemoji Country Flags', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji';
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 3px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -74,9 +97,16 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-gold: var(--gold);
+  --color-gold-hover: var(--gold-hover);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-gold-soft: var(--gold-soft);
+  --color-rail: var(--rail);
+  --color-rail-foreground: var(--rail-foreground);
   --color-bubble-in: var(--bubble-in);
   --color-bubble-out: var(--bubble-out);
   --color-chat-bg: var(--chat-bg);
+  --color-tick-read: var(--tick-read);
 }
 
 @layer base {
@@ -84,6 +114,24 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+  }
+}
+
+@layer utilities {
+  /* Latar area chat: pola titik halus seperti kertas, agar gelembung pesan menonjol. */
+  .chat-surface {
+    background-color: var(--chat-bg);
+    background-image: radial-gradient(var(--chat-pattern) 1.2px, transparent 1.2px);
+    background-size: 18px 18px;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
   }
 }

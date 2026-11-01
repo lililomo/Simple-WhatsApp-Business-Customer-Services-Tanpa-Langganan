@@ -27,6 +27,12 @@ export const sendMessageBody = z.discriminatedUnion('type', [
     params: templateParams.default({}),
     clientRef,
   }),
+  z.object({
+    type: z.literal('sticker'),
+    stickerId: z.string().regex(/^\d+$/),
+    replyTo,
+    clientRef,
+  }),
 ]);
 export type SendMessageBody = z.infer<typeof sendMessageBody>;
 

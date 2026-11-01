@@ -17,6 +17,8 @@ export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type MediaRow = typeof media.$inferSelect;
 
+const SYSTEM_SENDERS: Record<string, string> = { auto_reply: 'Balasan otomatis' };
+
 export function contactDTO(c: ContactRow): ContactDTO {
   return {
     id: String(c.id),
@@ -93,6 +95,7 @@ export async function messagesToDTO(db: Db, rows: MessageRow[]): Promise<Message
     let sentBy: SenderDTO | null = null;
     if (r.sentByUserId) sentBy = { type: 'user', id: String(r.sentByUserId), name: userById.get(r.sentByUserId) ?? 'Petugas' };
     else if (r.sentByApiKeyId) sentBy = { type: 'api', id: String(r.sentByApiKeyId), name: keyById.get(r.sentByApiKeyId) ?? 'API' };
+    else if (r.sentBySystem) sentBy = { type: 'system', id: r.sentBySystem, name: SYSTEM_SENDERS[r.sentBySystem] ?? 'Sistem' };
     return {
       id: String(r.id),
       conversationId: String(r.conversationId),

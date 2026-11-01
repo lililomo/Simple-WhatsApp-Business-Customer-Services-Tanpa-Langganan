@@ -1,4 +1,4 @@
-import { format, formatDistanceToNowStrict, isSameDay, isSameYear, isYesterday } from 'date-fns';
+import { format, formatDistanceToNowStrict, isSameDay, isSameYear, subDays } from 'date-fns';
 import { id } from 'date-fns/locale';
 
 export function formatDateTime(iso: string): string {
@@ -13,7 +13,8 @@ export function formatTime(iso: string): string {
 export function formatListTime(iso: string, now = new Date()): string {
   const d = new Date(iso);
   if (isSameDay(d, now)) return format(d, 'HH:mm');
-  if (isYesterday(d)) return 'Kemarin';
+  // Dibandingkan dengan `now`, bukan jam sistem (isYesterday dari date-fns selalu memakai jam sistem).
+  if (isSameDay(d, subDays(now, 1))) return 'Kemarin';
   return format(d, isSameYear(d, now) ? 'd MMM' : 'd/M/yy', { locale: id });
 }
 
@@ -21,7 +22,7 @@ export function formatListTime(iso: string, now = new Date()): string {
 export function formatDayLabel(iso: string, now = new Date()): string {
   const d = new Date(iso);
   if (isSameDay(d, now)) return 'Hari ini';
-  if (isYesterday(d)) return 'Kemarin';
+  if (isSameDay(d, subDays(now, 1))) return 'Kemarin';
   return format(d, 'EEEE, d MMMM yyyy', { locale: id });
 }
 

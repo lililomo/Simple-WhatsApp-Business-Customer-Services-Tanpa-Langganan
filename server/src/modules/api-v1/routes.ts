@@ -11,7 +11,7 @@ import {
 } from '@wa/shared';
 import { contacts, conversations, idempotencyKeys, media, messages, templates } from '../../db/schema';
 import { sha256Hex } from '../../lib/crypto';
-import { AppError, notFound } from '../../lib/errors';
+import { AppError, isDuplicateKey, notFound } from '../../lib/errors';
 import type { AppDeps, AppInstance } from '../../types';
 import { apiKeys } from '../../db/schema';
 import { findActiveKey } from '../api-keys/service';
@@ -240,7 +240,7 @@ async function withIdempotency(
   try {
     await db.insert(idempotencyKeys).values({ apiKeyId, idemKey: key, requestHash: hash, responseStatus: 0, response: {} });
   } catch (err) {
-    if ((err as { code?: string }).code === 'ER_DUP_ENTRY') {
+    if (isDuplicateKey(err)) {
       throw new AppError(409, 'idempotency_in_progress', 'Permintaan dengan Idempotency-Key ini sedang diproses.');
     }
     throw err;

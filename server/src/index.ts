@@ -4,13 +4,17 @@ import { createDatabase } from './db/client';
 import { EventBus } from './lib/bus';
 import { WebhookWorker } from './modules/processor/worker';
 import { WebhookDispatcher } from './modules/webhook-out/dispatcher';
+import { PushNotifier } from './modules/push/service';
+import type { AppDeps } from './types';
 
 const config = loadConfig();
 const database = createDatabase(config.DATABASE_URL);
-const deps = { config, database, bus: new EventBus() };
+const deps: AppDeps = { config, database, bus: new EventBus() };
 const app = await buildApp(deps);
+deps.log = app.log;
 const webhookWorker = new WebhookWorker(deps, app.log);
 const dispatcher = new WebhookDispatcher(deps, app.log);
+const pushNotifier = new PushNotifier(deps);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
@@ -25,3 +29,4 @@ process.on('SIGINT', () => void shutdown('SIGINT'));
 await app.listen({ port: config.PORT, host: '127.0.0.1' });
 webhookWorker.start();
 dispatcher.start();
+pushNotifier.start();

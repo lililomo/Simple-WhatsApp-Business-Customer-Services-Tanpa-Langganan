@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router';
-import { ArrowLeft, Info } from 'lucide-react';
+import { ArrowLeft, Info, Upload } from 'lucide-react';
+import { MAX_ATTACHMENTS } from '@/features/composer/AttachmentDialog';
 import { formatWaId, type MessageDTO } from '@wa/shared';
 import { Button } from '@/components/ui/button';
 import { Alert, Skeleton } from '@/components/ui/misc';
@@ -9,7 +10,7 @@ import { Avatar, WindowBadge } from './bits';
 import { ContactPanel } from './ContactPanel';
 import { MessageTimeline } from './MessageTimeline';
 import { useConversation, useMarkRead } from './queries';
-import { Composer } from './Composer';
+import { Composer, type ComposerHandle } from './Composer';
 
 export function ChatPane({ conversationId }: { conversationId: string }) {
   const { data: conv, isPending, isError, error } = useConversation(conversationId);
@@ -30,6 +31,38 @@ export function ChatPane({ conversationId }: { conversationId: string }) {
 
   useEffect(() => setReplyTo(null), [conversationId]);
 
+  // Tarik file dari Windows Explorer ke area chat untuk melampirkan. Penghitung menangani dragenter/leave
+  // yang juga dipicu oleh elemen anak.
+  const composerRef = useRef<ComposerHandle>(null);
+  const dragDepth = useRef(0);
+  const [dragging, setDragging] = useState(false);
+  const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
+  const dropHandlers = {
+    onDragEnter: (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current++;
+      setDragging(true);
+    },
+    onDragOver: (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    },
+    onDragLeave: (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (dragDepth.current === 0) setDragging(false);
+    },
+    onDrop: (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDragging(false);
+      composerRef.current?.addFiles([...e.dataTransfer.files]);
+    },
+  };
+
   if (isPending) {
     return (
       <div className="flex flex-1 flex-col gap-3 p-4">
@@ -41,7 +74,14 @@ export function ChatPane({ conversationId }: { conversationId: string }) {
 
   return (
     <div className="flex h-full min-w-0 flex-1">
-      <div className="flex min-w-0 flex-1 flex-col bg-chat-bg">
+      <div className="chat-surface relative flex min-w-0 flex-1 flex-col" {...dropHandlers}>
+        {dragging && (
+          <div className="pointer-events-none absolute inset-2 z-30 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gold bg-background/85 text-center backdrop-blur-sm">
+            <Upload className="size-10 text-gold-hover" />
+            <div className="text-base font-semibold">Lepaskan file di sini</div>
+            <div className="text-sm text-muted-foreground">Foto, video, dokumen, atau audio · maks {MAX_ATTACHMENTS} file</div>
+          </div>
+        )}
         <header className="flex items-center gap-3 border-b bg-card px-3 py-2">
           <Button asChild variant="ghost" size="icon-sm" className="md:hidden">
             <Link to="/chats" aria-label="Kembali ke daftar chat">
@@ -63,7 +103,7 @@ export function ChatPane({ conversationId }: { conversationId: string }) {
           </Button>
         </header>
         <MessageTimeline key={conversationId} conversationId={conversationId} onReply={setReplyTo} />
-        <Composer conversation={conv} replyTo={replyTo} onClearReply={() => setReplyTo(null)} />
+        <Composer ref={composerRef} conversation={conv} replyTo={replyTo} onClearReply={() => setReplyTo(null)} />
       </div>
       {showInfo && (
         <div className="fixed inset-0 z-40 md:static md:z-auto">

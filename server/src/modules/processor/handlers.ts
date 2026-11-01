@@ -10,6 +10,8 @@ import {
   type WebhookPayload,
 } from '../../meta/webhook-types';
 import type { AppDeps } from '../../types';
+import { isDuplicateKey } from '../../lib/errors';
+import { maybeAutoReply } from '../business-hours/service';
 import type { WaAccount } from '../connection/service';
 import { loadConversation, loadMessage, type ContactRow, type ConversationRow } from '../conversations/dto';
 import { downloadInboundMedia } from '../media/service';
@@ -211,7 +213,7 @@ async function handleInbound(
     });
     messageId = res.insertId;
   } catch (err) {
-    if ((err as { code?: string }).code === 'ER_DUP_ENTRY') return;
+    if (isDuplicateKey(err)) return;
     throw err;
   }
 
@@ -236,6 +238,16 @@ async function handleInbound(
 
   const [messageDto, convDto] = await Promise.all([loadMessage(db, messageId), loadConversation(db, conv.id)]);
   if (messageDto && convDto) deps.bus.emit({ type: 'message.created', message: messageDto, conversation: convDto });
+
+  // Hanya untuk pesan yang baru tercatat (webhook ulang sudah berhenti di ER_DUP_ENTRY di atas). Kegagalannya
+  // tidak boleh menggagalkan event ini, karena saat diproses ulang unduhan media di bawah akan terlewat.
+  await maybeAutoReply(deps, {
+    conversationId: conv.id,
+    contactId: contact.id,
+    contactName: convDto?.contact.name ?? contact.profileName ?? '',
+    type,
+    at,
+  }).catch((err: unknown) => deps.log?.warn({ err, conversationId: conv.id }, 'auto reply check failed'));
 
   if (mediaRow) {
     await downloadInboundMedia(deps, account, mediaRow);

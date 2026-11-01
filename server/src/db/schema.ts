@@ -165,6 +165,8 @@ export const messages = mysqlTable(
     templateLanguage: varchar('template_language', { length: 16 }),
     sentByUserId: ref('sent_by_user_id'),
     sentByApiKeyId: ref('sent_by_api_key_id'),
+    /** Pengirim otomatis dari aplikasi sendiri, mis. 'auto_reply' untuk balasan di luar jam kerja. */
+    sentBySystem: varchar('sent_by_system', { length: 32 }),
     clientRef: varchar('client_ref', { length: 64 }),
     errorCode: int('error_code'),
     errorTitle: varchar('error_title', { length: 255 }),
@@ -280,6 +282,96 @@ export const outboundWebhookDeliveries = mysqlTable(
   },
   (t) => [index('deliveries_status_idx').on(t.status, t.nextAttemptAt)],
 );
+
+/** Pengaturan bersama (satu baris per kunci), mis. jam kerja dan kunci VAPID. */
+export const appSettings = mysqlTable('app_settings', {
+  key: varchar('key', { length: 64 }).primaryKey(),
+  value: jsonText<unknown>('value').notNull(),
+  updatedBy: ref('updated_by'),
+  updatedAt: updatedAt(),
+});
+
+/** Balasan cepat lokal (bukan template Meta), dipakai bersama semua petugas. */
+export const quickReplies = mysqlTable('quick_replies', {
+  id: id(),
+  title: varchar('title', { length: 100 }).notNull(),
+  shortcut: varchar('shortcut', { length: 40 }).unique(),
+  body: text('body').notNull(),
+  usageCount: int('usage_count').notNull().default(0),
+  lastUsedAt: ts('last_used_at'),
+  createdBy: ref('created_by'),
+  updatedBy: ref('updated_by'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+/** Koleksi stiker bersama (WebP 512×512). ID media Meta disimpan agar tidak diunggah ulang setiap kirim. */
+export const stickers = mysqlTable('stickers', {
+  id: id(),
+  sha256: char('sha256', { length: 64 }).notNull().unique(),
+  storagePath: varchar('storage_path', { length: 500 }).notNull(),
+  fileSize: int('file_size').notNull(),
+  animated: boolean('animated').notNull().default(false),
+  waMediaId: varchar('wa_media_id', { length: 128 }),
+  waMediaUploadedAt: ts('wa_media_uploaded_at'),
+  usageCount: int('usage_count').notNull().default(0),
+  lastUsedAt: ts('last_used_at'),
+  createdBy: ref('created_by'),
+  createdAt: createdAt(),
+});
+
+/** Riwayat emoji bersama. Kuncinya kode titik heksadesimal (mis. "1f44d") agar tidak bergantung collation. */
+export const emojiUsage = mysqlTable('emoji_usage', {
+  code: varchar('code', { length: 64 }).primaryKey(),
+  usageCount: int('usage_count').notNull().default(0),
+  lastUsedAt: ts('last_used_at').notNull(),
+});
+
+/** Salinan hari libur dari API api.co.id, diperbarui harian. */
+export const holidays = mysqlTable(
+  'holidays',
+  {
+    id: id(),
+    date: varchar('date', { length: 10 }).notNull(),
+    name: varchar('name', { length: 190 }).notNull(),
+    type: varchar('type', { length: 32 }).notNull(),
+    fetchedAt: ts('fetched_at').notNull(),
+  },
+  (t) => [uniqueIndex('holidays_date_name_uq').on(t.date, t.name)],
+);
+
+/** Catatan balasan otomatis per kontak, untuk mode "sekali sehari" dan jeda antarbalasan. */
+export const autoReplyLog = mysqlTable(
+  'auto_reply_log',
+  {
+    id: id(),
+    contactId: ref('contact_id')
+      .notNull()
+      .references(() => contacts.id, { onDelete: 'cascade' }),
+    day: varchar('day', { length: 10 }).notNull(),
+    messageId: ref('message_id'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('auto_reply_contact_idx').on(t.contactId, t.day)],
+);
+
+/** Langganan Web Push per browser; ikut terhapus saat sesi login berakhir. */
+export const pushSubscriptions = mysqlTable('push_subscriptions', {
+  id: id(),
+  userId: ref('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  sessionId: ref('session_id')
+    .notNull()
+    .references(() => sessions.id, { onDelete: 'cascade' }),
+  endpointHash: char('endpoint_hash', { length: 64 }).notNull().unique(),
+  endpoint: text('endpoint').notNull(),
+  p256dh: varchar('p256dh', { length: 255 }).notNull(),
+  auth: varchar('auth', { length: 255 }).notNull(),
+  userAgent: varchar('user_agent', { length: 255 }),
+  lastSuccessAt: ts('last_success_at'),
+  createdAt: createdAt(),
+});
 
 export const auditLogs = mysqlTable(
   'audit_logs',

@@ -12,7 +12,7 @@ const URL_RE = /\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/;
 
 const rules: Rule[] = [
   { re: /```([\s\S]+?)```/, nested: false, render: (s, k) => <code key={k} className="block rounded bg-black/5 px-1.5 py-1 font-mono text-[0.85em] whitespace-pre-wrap dark:bg-white/10">{s}</code> },
-  { re: URL_RE, nested: false, render: (s, k) => <a key={k} href={s} target="_blank" rel="noopener noreferrer nofollow" className="break-all text-sky-700 underline dark:text-sky-400">{s}</a> },
+  { re: URL_RE, nested: false, render: (s, k) => <a key={k} href={s} target="_blank" rel="noopener noreferrer nofollow" className="break-all text-tick-read underline">{s}</a> },
   { re: /`([^`\n]+)`/, nested: false, render: (s, k) => <code key={k} className="rounded bg-black/5 px-1 font-mono text-[0.85em] dark:bg-white/10">{s}</code> },
   { re: /(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\w*])/, nested: true, render: (s, k) => <strong key={k}>{format(s, k)}</strong> },
   { re: /(?<![\w_])_(?!\s)([^_\n]+?)(?<!\s)_(?![\w_])/, nested: true, render: (s, k) => <em key={k}>{format(s, k)}</em> },

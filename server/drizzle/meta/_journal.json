@@ -15,6 +15,13 @@
       "when": 1793537617053,
       "tag": "0001_messages_fulltext",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1793545964814,
+      "tag": "0002_shared_library_business_hours_push",
+      "breakpoints": true
     }
   ]
 }

@@ -6,3 +6,6 @@ export * from './conversations';
 export * from './templates';
 export * from './send';
 export * from './integration';
+export * from './library';
+export * from './business-hours';
+export * from './push';

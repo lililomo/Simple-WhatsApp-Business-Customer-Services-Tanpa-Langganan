@@ -5,6 +5,28 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 ## Posisi sekarang
 
 - **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih berjalan paralel.
+- **Selesai (2 Nov 2026):** paket fitur permintaan pemilik (SPEC §5, §7, §10, §15). Migrasi `0002`.
+  1. Balasan cepat lokal bersama: menu ⚡ dan pemicu `/` di kotak balas, variabel `{salam}`/`{nama}`/`{petugas}`, halaman Pengaturan → Balasan cepat.
+  2. Panel emoji & stiker ala WhatsApp Web:
+     - riwayat emoji dan koleksi stiker dipakai bersama semua petugas;
+     - "Buat stiker" (crop → WebP 512×512);
+     - "Simpan stiker" dari stiker kiriman warga.
+  3. Drag & drop dan tempel lampiran ke area chat; pratinjau banyak file; crop/putar foto; konversi otomatis gambar ke JPEG ≤ 5 MB.
+  4. Tampilan per browser (localStorage):
+     - lebar kolom daftar chat bisa digeser;
+     - ukuran teks;
+     - tema terang/gelap/ikut Windows.
+  5. Jam kerja + hari libur (api.co.id) + balasan otomatis (sekali sehari / setiap pesan dengan jeda 1 menit). **Default mati.**
+  6. Notifikasi Windows lewat Web Push, juga saat tab ditutup (selama browser jalan dan masih login). Diaktifkan per browser lewat banner atau Pengaturan → Tampilan.
+  7. Tema baru mengikuti gaya Coretax DJP (navy `#212C5F`, emas `#FFC91B`, Plus Jakarta Sans), mode terang dan gelap.
+  - **Perbaikan ikutan:**
+    - error unique key dari Drizzle (`ER_DUP_ENTRY` ada di `cause`) kini dikenali di prosesor webhook dan idempotensi API v1;
+    - gaya tombol rail tidak pernah aktif karena className fungsi `NavLink` di dalam Tooltip;
+    - label "Kemarin" di daftar chat/linimasa memakai jam sistem, bukan waktu acuan (`isYesterday`).
+  - **Perlu tindakan pemilik:**
+    - daftar API key gratis di api.co.id, lalu tempel di Pengaturan → Jam kerja;
+    - sebelum menyalakan balasan otomatis WA Inbox, matikan balasan otomatis Kirimdev.
+  - Folder `template_style/` (halaman Coretax tersimpan, berisi data pribadi) di-ignore git.
 - **Selesai:** Prompt 0 (fondasi repo: npm workspaces shared/server/web, TypeScript 6.0, ESLint 10, Vitest 5, Fastify 5 `/healthz`, Vite 8 + React 19 + Tailwind 4, komponen UI bergaya shadcn di atas `radix-ui`).
 - **Selesai:** Prompt 1 (config zod, skema Drizzle 14 tabel + migrasi `server/drizzle/0000_init.sql`, AES-256-GCM, argon2id, CLI `db:migrate` & `user:create`, test DB).
   - Database `wainbox_dev` dan `wainbox_test` dibuat lewat aaPanel. Akses dari laptop lewat tunnel `ssh -N -L 3307:127.0.0.1:3306 <host>`; kredensial hanya di `.env` lokal.
