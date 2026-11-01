@@ -78,6 +78,8 @@ chown -R "$RUN_USER:$RUN_USER" "$RELEASE_DIR" || abort_build "chown release"
 log "Build $REL"
 (cd "$RELEASE_DIR" && as_app npm ci --no-audit --no-fund) >>"$BUILD_LOG" 2>&1 || abort_build "npm ci"
 (cd "$RELEASE_DIR" && as_app npm run build) >>"$BUILD_LOG" 2>&1 || abort_build "npm run build"
+# devDependencies hanya dibutuhkan saat build; buang agar tiap release tidak memakan ratusan MB.
+(cd "$RELEASE_DIR" && as_app npm prune --omit=dev --no-audit --no-fund) >>"$BUILD_LOG" 2>&1 || abort_build "npm prune"
 
 log "Migrasi database"
 (cd "$APP_DIR" && as_app node --env-file="$APP_DIR/.env" "$RELEASE_DIR/server/dist/cli.js" db:migrate) \
