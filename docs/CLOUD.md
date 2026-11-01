@@ -16,7 +16,7 @@ Sebagian besar pembangunan (menulis kode dan test) bisa dikerjakan di sesi cloud
 
 1. **Pasang Claude GitHub App** di repo ini: https://github.com/apps/claude → Configure → pilih repo `Simple-WhatsApp-Business-Customer-Services-Tanpa-Langganan`. App ini diperlukan agar sesi cloud bisa push branch dan membuat PR, dan agar fitur Auto-fix aktif. Alternatifnya, jalankan `/web-setup` dari Claude Code di laptop yang sudah login `gh`.
 2. **Buat cloud environment** di claude.ai/code (pengaturan environment), misalnya bernama `WA Inbox`:
-   - Network access: **Trusted** (default). Sudah mencakup npm registry, nodejs.org, Docker Hub, dan mirror Ubuntu.
+   - Network access: **Trusted** (default). Sudah mencakup npm registry, nodejs.org, Docker Hub, dan mirror Ubuntu, tapi **tidak** mencakup `developers.facebook.com`. Untuk Prompt R dan langkah lain yang perlu membaca dokumentasi Meta, pilih **Custom**, sertakan daftar default, lalu tambahkan `developers.facebook.com`. Tool WebFetch/WebSearch mungkin tetap bisa dipakai tanpa ini.
    - Setup script:
 
      ```bash
@@ -32,10 +32,13 @@ Sebagian besar pembangunan (menulis kode dan test) bisa dikerjakan di sesi cloud
      docker pull mariadb:10.11
      ```
 
-     Hasil setup script di-cache, jadi sesi berikutnya cepat. Proses yang berjalan (database) tidak ikut ter-cache. Karena itu Prompt 0 menambahkan hook `SessionStart` di `.claude/settings.json` yang, hanya saat `CLAUDE_CODE_REMOTE=true`:
+     Hasil setup script di-cache, jadi sesi berikutnya cepat. Proses yang berjalan tidak ikut ter-cache, termasuk Docker daemon dan database. Dari review 1 Nov 2026, daemon Docker memang tidak otomatis berjalan di VM. Karena itu Prompt 0 menambahkan hook `SessionStart` di `.claude/settings.json` yang, hanya saat `CLAUDE_CODE_REMOTE=true`:
      - menaruh `/opt/node24/bin` di depan PATH;
-     - menjalankan container `mariadb:10.11`;
+     - menyalakan `dockerd` bila belum berjalan dan menarik `mariadb:10.11` bila belum ada;
+     - menjalankan container database dan menunggu sampai siap;
      - mengisi `DATABASE_URL_TEST`.
+
+     Jika image VM sudah punya `/opt/node24` dengan versi minor berbeda (mis. v24.22.x), skrip tidak memasang ulang. Itu tidak masalah: yang penting major 24, sama dengan produksi (v24.14.0).
 3. **Tes sekali:** buka sesi baru di repo ini dan minta `node -v && docker ps`. Hasil yang diharapkan: `v24.x` (setelah Prompt 0) dan Docker berjalan.
 
 ## Model dan effort

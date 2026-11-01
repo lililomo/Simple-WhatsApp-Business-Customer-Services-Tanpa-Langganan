@@ -8,6 +8,7 @@ coverage/
 .env.*
 !.env.example
 .deploy.env
+.deploy-state/
 DEPLOYMENT.local.md
 
 # Data aplikasi di server

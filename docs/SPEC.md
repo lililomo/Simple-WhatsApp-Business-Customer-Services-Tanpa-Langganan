@@ -89,7 +89,8 @@ Gunakan versi stabil terbaru dari setiap paket saat implementasi, dan kunci vers
 ├── deploy/
 │   ├── aapanel/                auto-deploy.sh, restart.sh, cli.sh, watchdog.sh, deploy.env.example
 │   └── placeholder/server.js   halaman sementara sebelum aplikasi pertama aktif
-└── .claude/settings.json       hook SessionStart untuk sesi cloud (Node 24 + MariaDB test)
+├── .github/workflows/ci.yml    lint, typecheck, test (service MariaDB 10.11), build untuk setiap PR
+└── .claude/settings.json       hook SessionStart untuk sesi cloud (Node 24 + Docker + MariaDB test)
 ```
 
 ## 4. Konfigurasi (`.env`)
@@ -149,7 +150,7 @@ templates        id, wa_account_id FK, meta_template_id, name, language, categor
                  components JSON, quality_score, rejected_reason, synced_at,
                  UQ(wa_account_id, name, language)
 
-webhook_events   id, received_at, signature_ok, payload LONGTEXT, status
+webhook_events   id, received_at, payload LONGTEXT (hanya signature valid), status
                  ENUM(pending,processing,done,failed), attempts, lease_until,
                  next_attempt_at, error TEXT, processed_at   IDX(status, next_attempt_at)
 
@@ -198,10 +199,10 @@ Basis: `https://graph.facebook.com/${GRAPH_API_VERSION}`, header `Authorization:
   - jika `hub.mode=subscribe` dan `hub.verify_token` cocok dengan salah satu `wa_accounts.verify_token`, balas `hub.challenge` sebagai text/plain;
   - selain itu 403.
 - `POST /webhooks/meta`:
-  1. Baca **raw body** (content-type parser khusus route ini).
+  1. Baca **raw body** (content-type parser khusus route ini) dengan batas **3 MB**, sesuai ukuran payload maksimum dari Meta. Lebih besar → `413`.
   2. Hitung `sha256=HMAC_SHA256(app_secret, raw)` dan bandingkan dengan header `X-Hub-Signature-256` memakai `timingSafeEqual`. Coba app_secret dari setiap akun aktif.
-  3. Simpan ke `webhook_events` (`signature_ok` dicatat; event tanpa signature valid disimpan `status=failed` untuk audit, tidak diproses).
-  4. Balas `200` segera, lalu beri tahu worker.
+  3. Signature tidak valid → balas `401` dan **jangan simpan payload**. Endpoint ini publik, jadi siapa pun bisa mengirim sampah yang memenuhi disk. Cukup catat satu baris log (IP, ukuran) dan naikkan penghitung. Request bersignature tidak valid juga dibatasi rate limit per IP.
+  4. Signature valid → simpan ke `webhook_events`, balas `200` segera, lalu beri tahu worker.
 - **Worker:** ambil batch dengan `SELECT … FOR UPDATE SKIP LOCKED` (didukung MariaDB 10.6+), set `lease_until = now+60s`, lalu proses. Jika gagal: `attempts+1`, `next_attempt_at` dengan backoff (10 dtk, 1 mnt, 5 mnt, 30 mnt, 2 jam). Setelah 8 kali gagal → `failed` (terlihat di halaman admin).
 - **Pemetaan payload** `entry[].changes[]`:
 
@@ -436,7 +437,7 @@ Akses SSH, alamat server, dan catatan site lain di server ada di `DEPLOYMENT.loc
 - **Folder produksi = clone repo** (branch `main`, remote memakai deploy key *read-only*). Folder ini hanya menerima pull dan tidak pernah diedit langsung. Auto-deploy menolak jalan jika ada perubahan lokal.
 - **Clone dev di server** (deploy key *read-write*): untuk pekerjaan yang butuh aaPanel atau uji Meta asli. Hasilnya di-push ke GitHub seperti biasa. Lokasinya dicatat di `DEPLOYMENT.local.md`.
 - File di folder produksi yang tidak di-commit:
-  - `.env`, `.deploy.env`, `DEPLOYMENT.local.md`, `storage/`;
+  - `.env`, `.deploy.env`, `.deploy-state/`, `DEPLOYMENT.local.md`, `storage/`;
   - `.well-known/` dan `.htaccess` buatan aaPanel.
 
 ### 12.3 Auto-deploy (`deploy/aapanel/auto-deploy.sh`)
@@ -445,19 +446,24 @@ Akses SSH, alamat server, dan catatan site lain di server ada di `DEPLOYMENT.loc
 `bash /www/wwwroot/wa.kppbwi.app/deploy/aapanel/auto-deploy.sh`
 
 1. Mengunci proses (`flock`) dan berjalan dari salinan sementara, agar skrip tidak berubah di tengah jalan saat `git merge`.
-2. `git fetch origin main`. Jika tidak ada commit baru, selesai tanpa log.
+2. `git fetch origin main`. Selesai tanpa log jika tidak ada commit baru, **atau jika commit terbaru tercatat gagal** di `.deploy-state/failed-sha`. Commit yang gagal tidak dicoba ulang sampai ada commit baru, agar produksi tidak restart berulang tiap 2 menit.
 3. Batal jika folder produksi punya perubahan lokal.
 4. `git merge --ff-only`. Batal jika riwayat `main` ditulis ulang.
-5. Jika `package.json` punya script `build`: `npm ci` + `npm run build` (sebagai `www`). Jika punya `db:migrate`: dijalankan.
-6. Restart lewat aaPanel (`deploy/aapanel/restart.sh` → `nodejsModel.restart_project`).
-7. Healthcheck `HEALTH_URL` selama maksimal 40 detik. Jika gagal: `git reset` ke commit sebelumnya, build ulang, restart, lalu catat `GAGAL`/`Rollback`.
+5. Jika perubahan hanya di `docs/`, `README.md`, atau `CLAUDE.md`: selesai tanpa build dan restart.
+6. Jika ada script `build`: `npm ci` + `npm run build` (sebagai `www`). Jika ada script `db:migrate`: dijalankan. **Langkah yang gagal langsung menghentikan deploy.**
+7. Restart lewat aaPanel (`deploy/aapanel/restart.sh` → `nodejsModel.restart_project`).
+8. Healthcheck `HEALTH_URL` maksimal 40 detik. Setelah repo punya script `build`, field `version` di `/healthz` **wajib sama dengan SHA commit target**. Placeholder cukup HTTP 200.
+9. Jika langkah 6–8 gagal: SHA dicatat di `failed-sha`, `git reset` ke commit sebelumnya, build ulang, restart, lalu catat `GAGAL`/`Rollback`.
 
 Catatan operasional:
-- Log: `/www/wwwlogs/wa_kppbwi_app-deploy.log`. Memaksa build & restart ulang: tambahkan argumen `--force`.
+- Log ringkas: `/www/wwwlogs/wa_kppbwi_app-deploy.log`. Output lengkap npm/build hanya ada di `.deploy-state/last-deploy.log` dan `last-rollback.log`, yang ditimpa setiap deploy agar disk tidak terisi.
+- Memaksa build & restart ulang, termasuk mencoba lagi commit yang tercatat gagal: `bash deploy/aapanel/auto-deploy.sh --force`.
+- Skenario gagal (build gagal, versi healthcheck salah, folder kotor, perubahan dokumen saja) sudah diuji di sandbox server pada 1 Nov 2026.
 - **Kontrak untuk aplikasi:**
   - script root `build` membangun shared, server, dan web;
   - script root `db:migrate` = `node --env-file=.env server/dist/cli.js db:migrate`;
-  - `GET /healthz` mengembalikan 200 + SHA commit.
+  - `GET /healthz` mengembalikan 200 dan JSON berisi `version` = SHA commit lengkap (dari `git rev-parse HEAD` saat build).
+- Merge ke `main` hanya lewat PR yang lolos CI (GitHub Actions + branch protection, dipasang di Prompt 0).
 - **Migrasi database wajib additive** (tambah kolom/tabel, tidak menghapus atau mengganti nama dalam satu langkah). Rollback hanya mengembalikan kode, bukan skema.
 - Build berjalan in-place. Proses lama tetap melayani sampai restart. `node_modules` tidak di-prune karena build memakai devDependencies.
 
@@ -507,6 +513,7 @@ Cron dibuat lewat UI aaPanel atau `btpython` (`crontab.crontab().AddCrontab`). N
   - signature webhook keluar.
 - Integrasi: Fastify `inject` terhadap database test dari `DATABASE_URL_TEST` (container `mariadb:10.11` di cloud/laptop, atau `wainbox_dev`; skema dibuat ulang per run) untuk alur webhook → pesan → SSE, kirim pesan (Graph di-mock), dan API v1.
 - Fixture disimpan di `server/test/fixtures/meta/` dengan bentuk payload resmi Meta.
+- **CI:** GitHub Actions menjalankan lint, typecheck, test (dengan service container `mariadb:10.11`), dan build untuk setiap PR. Branch `main` dilindungi sehingga hanya bisa di-merge jika CI hijau. Ini penting karena merge ke `main` langsung tayang di produksi.
 - **Smoke test produksi** setelah deploy: `/healthz`, login, SSE, kirim pesan ke nomor uji, terima balasan, status ✓✓ biru.
 
 ## 14. Checklist di sisi Meta (dikerjakan admin)

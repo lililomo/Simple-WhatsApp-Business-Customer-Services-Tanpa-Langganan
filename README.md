@@ -1,6 +1,6 @@
 # Simple WhatsApp Business Customer Services — Tanpa Langganan
 
-Aplikasi web untuk melayani chat pelanggan lewat **WhatsApp Business Platform (Cloud API)** yang terhubung langsung ke Meta, tanpa langganan SaaS pihak ketiga. Biaya yang dibayar hanya tarif per pesan ke Meta (1.000 pesan service per nomor per bulan gratis).
+Aplikasi web untuk melayani chat pelanggan lewat **WhatsApp Business Platform (Cloud API)** yang terhubung langsung ke Meta, tanpa langganan SaaS pihak ketiga. Biaya yang dibayar hanya tarif per pesan ke Meta (sejak 1 Okt 2026: 1.000 pesan service per nomor per bulan gratis, lihat [PRD §7](docs/PRD.md)).
 
 Penerapan pertama: layanan WhatsApp KPP Pratama Banyuwangi (`wa.kppbwi.app`).
 

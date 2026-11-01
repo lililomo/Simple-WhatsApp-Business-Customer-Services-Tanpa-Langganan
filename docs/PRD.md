@@ -161,6 +161,8 @@ Model data mendukung lebih dari satu nomor, tetapi UI fase 1 cukup untuk satu no
 
 - **Jendela layanan 24 jam:** pesan bebas hanya boleh dikirim ≤ 24 jam sejak pesan terakhir wajib pajak. Di luar itu wajib template yang disetujui.
 - **Biaya (per 1 Okt 2026):** setiap nomor mendapat 1.000 pesan service gratis per bulan. Template utility, termasuk yang dikirim di dalam jendela 24 jam, ditagih (±Rp357). Template marketing ±Rp586. Instansi pemerintah yang dinilai eligible oleh Meta tetap gratis untuk pesan service di atas kuota sampai 31 Des 2027. Tagihan dibayar langsung ke Meta oleh kantor.
+  - Sumber: halaman resmi [Pricing WhatsApp Business Platform](https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing), dicek 1 Nov 2026. Aturan ini berlaku sejak **1 Okt 2026**. Sebelumnya pesan service gratis tanpa batas dan utility di dalam jendela 24 jam gratis, sehingga model yang pengetahuannya berhenti sebelum Oktober 2026 bisa menganggap angka ini keliru.
+  - Tarif rupiah bersifat indikatif dari rate card mitra. Cek ulang rate card Meta sebelum menetapkan anggaran.
 - **Policy WhatsApp:**
   - wajib ada persetujuan (opt-in) dari penerima, dan permintaan berhenti harus dihormati;
   - jangan meminta atau membagikan nomor identitas pribadi maupun nomor kartu/rekening;

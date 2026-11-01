@@ -48,6 +48,9 @@ Tinjau dan perbaiki rancangan ini sebelum pembangunan dimulai:
 3. Rapikan PROMPTS.md bila perlu: setiap prompt bisa dijalankan sesi baru tanpa konteks lain,
    punya kolom Tempat dan Model, dan syarat "Selesai jika" yang bisa dibuktikan.
 4. Jangan menulis kode aplikasi. Repo ini publik: jangan memasukkan rahasia atau detail infrastruktur.
+   Jika developers.facebook.com diblokir jaringan VM, pakai WebFetch/WebSearch atau minta saya menambahkan
+   domain itu ke environment (lihat CLOUD.md). Jangan menganggap klaim harga/aturan Meta keliru hanya karena
+   berbeda dari pengetahuanmu; aturan Meta berubah per kuartal, jadi cek sumbernya.
 5. Ringkas perubahan di STATUS.md, commit, push, dan buat PR yang menjelaskan setiap perubahan + alasannya.
 
 Selesai jika: PR terbuka, dokumen konsisten satu sama lain, dan setiap asumsi Meta yang dicek
@@ -64,8 +67,8 @@ Siapkan fondasi repo sesuai SPEC §3:
   script root: dev, build, test, lint, typecheck. Commit package-lock.json.
 - Kontrak auto-deploy (SPEC §12.3): script root `build` membangun shared, server (tsup → server/dist/index.js
   dan server/dist/cli.js), dan web (vite → web/dist).
-- server: Fastify 5 minimal dengan GET /healthz → {ok, version, time}. version = git SHA saat build
-  (sisipkan lewat define tsup).
+- server: Fastify 5 minimal dengan GET /healthz → {ok, version, time}. version = SHA commit lengkap dari
+  `git rev-parse HEAD` saat build (sisipkan lewat define tsup). Auto-deploy mencocokkan nilai ini (SPEC §12.3).
 - web: Vite + React 19 + Tailwind 4 + shadcn/ui (init), halaman kosong "WA Inbox".
   Proxy dev /api dan /webhooks ke http://127.0.0.1:3210.
 - shared: paket berisi zod, ekspor contoh skema.
@@ -73,12 +76,17 @@ Siapkan fondasi repo sesuai SPEC §3:
 - Vitest di server dan web dengan satu test contoh.
 - .claude/settings.json: hook SessionStart yang HANYA saat CLAUDE_CODE_REMOTE=true
   (1) menambahkan /opt/node24/bin ke PATH lewat CLAUDE_ENV_FILE,
-  (2) menjalankan container mariadb:10.11 bernama wainbox-test (jika belum jalan),
+  (2) menyalakan dockerd jika daemon belum berjalan, menarik image mariadb:10.11 jika belum ada,
+      menjalankan container wainbox-test (jika belum jalan), dan menunggu sampai database siap,
   (3) mengekspor DATABASE_URL_TEST. Di laptop hook ini tidak melakukan apa-apa.
+- .github/workflows/ci.yml: untuk setiap PR dan push ke main jalankan npm ci, lint, typecheck, test
+  (service container mariadb:10.11, DATABASE_URL_TEST), dan build.
+- Tulis di STATUS.md perintah `gh api` untuk memasang branch protection di main (wajib PR + status check CI).
+  Admin menjalankannya dari laptop setelah CI pertama hijau.
 
 Jangan ubah deploy/aapanel/* dan deploy/placeholder/* kecuali memang perlu.
-Selesai jika: npm ci, npm run build, test, lint, dan typecheck hijau; di sesi cloud `node -v` menunjukkan v24
-dan container MariaDB berjalan. STATUS.md diperbarui, PR dibuat.
+Selesai jika: npm ci, npm run build, test, lint, dan typecheck hijau; CI hijau di PR; di sesi cloud `node -v`
+menunjukkan v24 dan container MariaDB berjalan. STATUS.md diperbarui, PR dibuat.
 Cek produksi: setelah merge, log deploy server menunjukkan build sukses (placeholder masih yang berjalan).
 ```
 
