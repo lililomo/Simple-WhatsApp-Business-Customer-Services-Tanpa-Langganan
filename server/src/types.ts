@@ -8,11 +8,13 @@ import type {
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { Config } from './config';
 import type { Database } from './db/client';
+import type { EventBus } from './lib/bus';
 import type { Role } from '@wa/shared';
 
 export interface AppDeps {
   config: Config;
   database: Database;
+  bus: EventBus;
   /** fetch untuk Graph API; diganti mock di test. */
   fetch?: typeof fetch;
 }

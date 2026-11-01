@@ -2,6 +2,7 @@ import type { LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../../src/app';
 import { loadConfig } from '../../src/config';
 import type { Database } from '../../src/db/client';
+import { EventBus } from '../../src/lib/bus';
 import { createUser } from '../../src/modules/users/service';
 import type { AppInstance } from '../../src/types';
 
@@ -24,7 +25,7 @@ export async function buildTestApp(
   fetchFn?: typeof fetch,
 ): Promise<AppInstance> {
   const app = await buildApp(
-    { config: testConfig(overrides), database, fetch: fetchFn },
+    { config: testConfig(overrides), database, fetch: fetchFn, bus: new EventBus() },
     { logger: false, webDistDir: '/tidak-ada' },
   );
   await app.ready();

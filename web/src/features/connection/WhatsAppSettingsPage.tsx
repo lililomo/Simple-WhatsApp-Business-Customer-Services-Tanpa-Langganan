@@ -13,6 +13,7 @@ import { Alert, Skeleton } from '@/components/ui/misc';
 import { api, errorMessage } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { ConnectionWizard } from './ConnectionWizard';
+import { FailedEventsCard } from './FailedEventsCard';
 import { useConnection } from './hooks';
 
 const WEBHOOK_FIELDS = [
@@ -172,6 +173,7 @@ function ConnectionSummary({ connection, onEdit }: { connection: ConnectionDTO; 
         </CardContent>
       </Card>
 
+      <FailedEventsCard />
       <RegisterCard />
     </div>
   );

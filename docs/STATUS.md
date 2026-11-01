@@ -18,7 +18,14 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
   - Build di server memakai cache npm milik `www` (cache global aaPanel dimiliki root) dan membuang devDependencies setelah build.
   - **Admin produksi belum dibuat:** pemilik menjalankan sendiri `ssh -t <host> bash /www/wwwroot/wa.kppbwi.app/bin/cli.sh user:create --admin` dan mengetik password di terminal.
 - **Selesai:** Prompt 4 (Graph client dengan retry khusus GET, peta error Meta → bahasa Indonesia, modul koneksi: validasi App ID/Secret lewat app access token, validasi WABA + daftar nomor, simpan terenkripsi, cek koneksi + subscribe app ke WABA, register nomor dengan PIN, status error saat token ditolak; web: wizard Pengaturan → WhatsApp dan banner status koneksi).
-- **Langkah berikutnya:** Prompt 5 di [PROMPTS.md](PROMPTS.md).
+- **Selesai:** Prompt 5.
+  - Penerima webhook `/webhooks/meta`: verifikasi `hub.challenge`; raw body maks 3 MB; signature HMAC wajib, dan yang tidak valid ditolak 401 tanpa disimpan.
+  - Worker in-process dengan `FOR UPDATE SKIP LOCKED`, lease, dan backoff.
+  - Prosesor pesan masuk semua tipe, status monoton + pricing, reaksi, kutipan, status template, dan sinyal akun.
+  - Unduh media ke `STORAGE_DIR`, dilayani dengan CSP sandbox.
+  - Admin bisa melihat dan memproses ulang webhook yang gagal.
+  - Uji lokal: `npm run simulate -- text "..."`.
+- **Langkah berikutnya:** Prompt 6 di [PROMPTS.md](PROMPTS.md).
 - Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
 - **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
 
