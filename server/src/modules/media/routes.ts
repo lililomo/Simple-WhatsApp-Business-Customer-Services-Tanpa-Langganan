@@ -8,7 +8,7 @@ import type { AppInstance } from '../../types';
 import { requireUserHook } from '../auth/plugin';
 import { requireAccount } from '../connection/service';
 import { loadMessage, mediaDTO } from '../conversations/dto';
-import { downloadInboundMedia, mediaAbsolutePath } from './service';
+import { downloadInboundMedia, mediaAbsolutePath, uploadOutboundMedia } from './service';
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const downloadQuery = z.object({ download: z.string().optional() });
@@ -42,6 +42,22 @@ export async function mediaRoutes(app: AppInstance) {
         `${INLINE.test(mime) && !req.query.download ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(name)}`,
       );
     return reply.send(createReadStream(file));
+  });
+
+  // Unggah lampiran untuk dikirim: multipart dengan satu field "file".
+  app.post('/', async (req, reply) => {
+    const file = await req.file().catch(() => undefined);
+    if (!file) throw new AppError(400, 'file_required', 'Pilih file yang akan dikirim.');
+    const data = await file.toBuffer().catch((err: { code?: string }) => {
+      if (err.code === 'FST_REQ_FILE_TOO_LARGE') throw new AppError(413, 'payload_too_large', `File melebihi ${deps.config.MAX_UPLOAD_MB} MB.`);
+      throw err;
+    });
+    const row = await uploadOutboundMedia(deps, await requireAccount(deps), {
+      data,
+      mime: file.mimetype,
+      fileName: file.filename || 'lampiran',
+    });
+    return reply.status(201).send({ media: mediaDTO(row) });
   });
 
   app.post('/:id/retry', { schema: { params: idParams } }, async (req) => {

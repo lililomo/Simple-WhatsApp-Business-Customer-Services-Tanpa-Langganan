@@ -29,7 +29,12 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
   - Server: daftar percakapan (filter, pencarian nama/nomor/isi, nomor `08…` dicocokkan dengan `628…`, cursor); riwayat pesan per halaman; tandai dibaca + satu read receipt ke Meta; ubah nama kontak; ringkasan belum dibaca; SSE `/api/events` dengan heartbeat 20 detik dan cek ulang sesi.
   - Web: layout 2 panel (1 panel di HP), daftar virtual, linimasa virtual dengan muat pesan lama, gelembung per tipe pesan, format teks WhatsApp, status centang, sisa jendela 24 jam, info kontak, notifikasi browser + suara, jumlah belum dibaca di judul tab. Diuji di browser lokal dengan webhook simulasi.
   - **Belum diverifikasi:** SSE lewat Apache di produksi (butuh login admin produksi).
-- **Langkah berikutnya:** Prompt 7 di [PROMPTS.md](PROMPTS.md).
+- **Selesai:** Prompt 7.
+  - Kirim teks, balasan berkutip, dan lampiran: unggah ke Meta dengan validasi jenis/ukuran sesuai batas Meta, simpan salinan lokal.
+  - Pengiriman: alur `pending → accepted/failed`, idempoten per `clientRef`; pesan bebas ditolak di luar jendela 24 jam tanpa memanggil Meta; penolakan Meta disimpan sebagai pesan gagal + alasan, dan bisa dicoba ulang; token ditolak → status koneksi error + event real-time.
+  - Web: kotak balas (Enter kirim, Shift+Enter baris baru, lampiran, bar kutipan, kunci saat jendela tertutup), pesan optimistis, peringatan NIK/NPWP, tombol "Coba lagi".
+  - Reaksi keluar dan emoji picker (prioritas S) belum dibuat.
+- **Langkah berikutnya:** Prompt 8 di [PROMPTS.md](PROMPTS.md).
 - Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
 - **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
 

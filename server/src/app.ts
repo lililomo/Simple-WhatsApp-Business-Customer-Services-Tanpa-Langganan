@@ -14,6 +14,8 @@ import { adminRoutes } from './modules/admin/routes';
 import { mediaRoutes } from './modules/media/routes';
 import { contactRoutes, conversationRoutes } from './modules/conversations/routes';
 import { realtimeRoutes } from './modules/realtime/routes';
+import { conversationMessageRoutes, messageRoutes } from './modules/messages/routes';
+import multipart from '@fastify/multipart';
 import { webhookInRoutes } from './modules/webhook-in/routes';
 import { userRoutes } from './modules/users/routes';
 import { registerSpa } from './spa';
@@ -61,6 +63,7 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
     errorResponseBuilder: () =>
       new AppError(429, 'rate_limited', 'Terlalu banyak permintaan. Coba lagi sebentar lagi.'),
   });
+  await app.register(multipart, { limits: { fileSize: deps.config.MAX_UPLOAD_MB * 1024 * 1024, files: 1, fields: 5 } });
   await app.register(authPlugin);
 
   app.get('/healthz', async (): Promise<Health> => ({
@@ -73,6 +76,8 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
   await app.register(userRoutes, { prefix: '/api/users' });
   await app.register(connectionRoutes, { prefix: '/api/connection' });
   await app.register(conversationRoutes, { prefix: '/api/conversations' });
+  await app.register(conversationMessageRoutes, { prefix: '/api/conversations' });
+  await app.register(messageRoutes, { prefix: '/api/messages' });
   await app.register(contactRoutes, { prefix: '/api/contacts' });
   await app.register(realtimeRoutes, { prefix: '/api' });
   await app.register(mediaRoutes, { prefix: '/api/media' });

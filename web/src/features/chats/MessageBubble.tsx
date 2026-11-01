@@ -1,7 +1,9 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Download, FileText, MapPin, RefreshCw, UserRound } from 'lucide-react';
+import { toast } from 'sonner';
 import type { MessageDTO } from '@wa/shared';
-import { api } from '@/lib/api';
+import { api, errorMessage } from '@/lib/api';
+import { upsertMessage } from './queries';
 import { formatTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { FormattedText } from '@/lib/whatsapp-format';
@@ -121,6 +123,27 @@ function Body({ message }: { message: MessageDTO }) {
   }
 }
 
+function FailedNotice({ message }: { message: MessageDTO }) {
+  const qc = useQueryClient();
+  const retry = useMutation({
+    mutationFn: () => api<{ message: MessageDTO }>(`/api/messages/${message.id}/retry`, { method: 'POST' }),
+    onSuccess: ({ message: updated }) => upsertMessage(qc, updated),
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+  // Pesan sementara (gagal sebelum sampai server) tidak bisa dikirim ulang dari sini.
+  const canRetry = message.direction === 'out' && !message.id.startsWith('tmp-');
+  return (
+    <div className="mt-1 flex items-start gap-2 rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">
+      <span className="flex-1">{message.error?.message}</span>
+      {canRetry && (
+        <button className="shrink-0 font-medium underline" disabled={retry.isPending} onClick={() => retry.mutate()}>
+          {retry.isPending ? 'Mengirim…' : 'Coba lagi'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function MessageBubble({ message, onReply }: { message: MessageDTO; onReply?: (m: MessageDTO) => void }) {
   const out = message.direction === 'out';
   return (
@@ -146,9 +169,7 @@ export function MessageBubble({ message, onReply }: { message: MessageDTO; onRep
           <span>{formatTime(message.timestamp)}</span>
           {out && <StatusTicks status={message.status} />}
         </div>
-        {message.status === 'failed' && message.error && (
-          <div className="mt-1 rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{message.error.message}</div>
-        )}
+        {message.status === 'failed' && message.error && <FailedNotice message={message} />}
         {message.reactionEmoji && (
           <span className="absolute -bottom-3.5 left-2 rounded-full border bg-background px-1 text-sm shadow-sm">{message.reactionEmoji}</span>
         )}

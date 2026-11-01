@@ -56,6 +56,7 @@ export async function connectionRoutes(app: AppInstance) {
         meta: { wabaId: account.wabaId, phoneNumberId: account.phoneNumberId, tokenChanged: !!req.body.accessToken },
         ip: req.ip,
       });
+      deps.bus.emit({ type: 'connection.updated' });
       return { connection: toConnectionDTO(account, appUrl) };
     });
 
@@ -63,6 +64,7 @@ export async function connectionRoutes(app: AppInstance) {
 
     admin.post('/check', async () => {
       const items = await checkConnection(deps, await requireAccount(deps));
+      deps.bus.emit({ type: 'connection.updated' });
       return { items, connection: toConnectionDTO((await getAccount(deps))!, appUrl) };
     });
 

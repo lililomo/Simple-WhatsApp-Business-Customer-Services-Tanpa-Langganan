@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
+import { DOCUMENT_MIMES, MEDIA_LIMITS, mediaKindFor } from '@wa/shared';
 import { media } from '../../db/schema';
 import { sha256Hex } from '../../lib/crypto';
+import { AppError } from '../../lib/errors';
 import type { Config } from '../../config';
 import type { AppDeps } from '../../types';
 import { accountGraph, metaToAppError, noteTokenError, type WaAccount } from '../connection/service';
@@ -57,6 +59,52 @@ export async function storeMediaFile(config: Config, data: Buffer, mime: string 
   await mkdir(path.dirname(abs), { recursive: true });
   await writeFile(abs, data);
   return { storagePath: rel, sha256: sha, fileSize: data.length };
+}
+
+/**
+ * Validasi file sesuai batas Meta, simpan salinan lokal, lalu unggah ke Meta (POST /{phone}/media).
+ * Mengembalikan baris media keluar yang siap dikirim.
+ */
+export async function uploadOutboundMedia(
+  deps: AppDeps,
+  account: WaAccount,
+  file: { data: Buffer; mime: string; fileName: string },
+): Promise<MediaRow> {
+  const mime = baseMime(file.mime) ?? 'application/octet-stream';
+  const kind = mediaKindFor(mime);
+  if (kind === 'document' && !DOCUMENT_MIMES.includes(mime)) {
+    throw new AppError(400, 'unsupported_media', `Jenis file ${mime} tidak didukung WhatsApp. Kirim sebagai PDF, dokumen Office, atau gambar JPG/PNG.`);
+  }
+  const limit = MEDIA_LIMITS[kind];
+  if (file.data.length > limit.maxBytes) {
+    throw new AppError(400, 'media_too_large', `File terlalu besar. Batas WhatsApp: ${limit.label}.`);
+  }
+  if (file.data.length === 0) throw new AppError(400, 'media_empty', 'File kosong.');
+
+  const stored = await storeMediaFile(deps.config, file.data, mime, file.fileName);
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mime);
+  form.append('file', new Blob([new Uint8Array(file.data)], { type: mime }), file.fileName);
+  let waMediaId: string;
+  try {
+    const res = await accountGraph(deps, account).post<{ id: string }>(`${account.phoneNumberId}/media`, form);
+    waMediaId = res.id;
+  } catch (err) {
+    await noteTokenError(deps, account, err);
+    throw metaToAppError(err);
+  }
+  const { db } = deps.database;
+  const [res] = await db.insert(media).values({
+    waMediaId,
+    direction: 'out',
+    mimeType: mime,
+    fileName: file.fileName.slice(0, 255),
+    status: 'ready',
+    ...stored,
+  });
+  const [row] = await db.select().from(media).where(eq(media.id, res.insertId));
+  return row!;
 }
 
 /** Unduh media masuk dari Meta. URL dari Meta hanya berlaku beberapa menit, jadi dijalankan segera. */

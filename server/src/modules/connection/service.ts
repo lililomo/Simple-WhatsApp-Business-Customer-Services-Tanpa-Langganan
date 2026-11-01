@@ -66,6 +66,7 @@ export async function noteTokenError(deps: AppDeps, account: WaAccount, err: unk
       .update(waAccounts)
       .set({ status: 'error', lastError: err.message })
       .where(eq(waAccounts.id, account.id));
+    deps.bus.emit({ type: 'connection.updated' });
   }
 }
 
