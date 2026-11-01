@@ -11,7 +11,13 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
   - Kolom JSON memakai tipe kustom `jsonText` karena MariaDB menyimpan JSON sebagai LONGTEXT dan kolom json bawaan Drizzle tidak mem-parse.
   - Admin dev lokal: `DEV_ADMIN_EMAIL`/`DEV_ADMIN_PASSWORD` di `.env` lokal.
 - **Selesai:** Prompt 2 (sesi cookie `wai_sess` + tabel sessions, login/logout/me/ganti password, rate limit login per IP & per email, cek Origin untuk request non-GET, kelola pengguna khusus admin dengan proteksi admin terakhir, audit log; web: login, layout rail, pengaturan Profil & Pengguna, tema gelap/terang). Diuji di browser lokal.
-- **Langkah berikutnya:** Prompt 3 di [PROMPTS.md](PROMPTS.md).
+- **Selesai:** Prompt 3 (pipeline deploy laptop → server).
+  - `scripts/deploy.sh`, `deploy/server/activate.sh`, serta `bin/` (cli, restart, watchdog, rollback). Semua jalur gagal diuji di sandbox server.
+  - Deploy pertama sukses 1 Nov 2026: `https://wa.kppbwi.app/healthz` melaporkan SHA commit, dan perintah jalan aaPanel sudah `node --env-file=.env app/server/dist/index.js`. Rollback manual teruji.
+  - Cron aaPanel "WA Inbox – Watchdog" (tiap 5 menit) dan "Backup DB wainbox" (harian 01:00, simpan 7) aktif, dan sudah sukses dijalankan sekali.
+  - Build di server memakai cache npm milik `www` (cache global aaPanel dimiliki root) dan membuang devDependencies setelah build.
+  - **Admin produksi belum dibuat:** pemilik menjalankan sendiri `ssh -t <host> bash /www/wwwroot/wa.kppbwi.app/bin/cli.sh user:create --admin` dan mengetik password di terminal.
+- **Langkah berikutnya:** Prompt 4 di [PROMPTS.md](PROMPTS.md).
 - Catatan teknis: TypeScript dikunci `~6.0` karena typescript-eslint belum mendukung TS 7. Komponen UI ditulis manual (bukan lewat CLI shadcn) di `web/src/components/ui/`.
 - **Produksi:** https://wa.kppbwi.app menjalankan placeholder (`placeholder/server.js` di server, di luar repo).
 
