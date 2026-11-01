@@ -32,8 +32,9 @@ export async function realtimeRoutes(app: AppInstance) {
     const zip = gzip ? createGzip({ flush: constants.Z_SYNC_FLUSH }) : null;
     zip?.pipe(res);
     const write = (chunk: string) => (zip ? zip.write(chunk) : res.write(chunk));
-    // mod_http2 (H2OutputBuffering default on) baru meneruskan data saat potongan berikutnya datang.
-    // Komentar kecil sesaat setelah setiap event "mendorong" event itu ke browser tanpa menunggu ping.
+    // Di produksi (Apache 2.4 + mod_proxy + HTTP/2) potongan data pertama ditahan sampai ada tulisan lain
+    // setelah jeda; susulan 50 ms tidak cukup, 1 detik cukup (diukur 1 Nov 2026). Setelah itu setiap tulisan
+    // langsung diteruskan. Komentar kecil 1 detik setelah event memastikan event tidak menunggu ping 20 detik.
     let nudge: NodeJS.Timeout | undefined;
     const send = (chunk: string) => {
       write(chunk);

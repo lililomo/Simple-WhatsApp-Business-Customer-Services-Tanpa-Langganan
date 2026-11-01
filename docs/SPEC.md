@@ -322,6 +322,11 @@ GET    /api/admin/webhook-events?status=failed   POST /api/admin/webhook-events/
 - Event: `message.created`, `message.updated`, `conversation.updated`, `connection.updated`. Payload berupa DTO lengkap dari `shared/`, sehingga klien bisa langsung memperbarui cache TanStack Query tanpa fetch ulang.
 - Setelah reconnect, klien meng-invalidate query percakapan yang terbuka dan daftar percakapan. Pesan yang terlewat terambil dari situ, jadi `Last-Event-ID` tidak diperlukan.
 - **Uji wajib setelah deploy:** `curl -N https://wa.kppbwi.app/api/events` (dengan cookie). Event harus mengalir tanpa tertahan buffer Apache/mod_deflate.
+- **Temuan produksi (1 Nov 2026):** di balik Apache, SSE awalnya tertahan sampai 20 detik.
+  - `httpd.conf` aaPanel memasang `SetOutputFilter DEFLATE` global, sehingga stream dikompres dan ditahan. Solusinya, aplikasi mengompres stream sendiri (gzip + `Z_SYNC_FLUSH`), sehingga mod_deflate melewatinya.
+  - Apache dengan HTTP/2 menahan potongan pertama sampai ada tulisan lain setelah jeda. Solusinya, aplikasi menulis komentar `:` 1 detik setelah setiap event.
+  - Hasil terukur: `hello` tiba ±1 detik setelah tersambung, dan tulisan berikutnya langsung.
+  - Perbaikan yang lebih bersih (`H2OutputBuffering off` + `no-gzip` untuk `/api/events` di konfigurasi Apache) belum dipasang karena menyentuh konfigurasi server bersama. Perlu persetujuan pemilik.
 
 ## 9. API publik v1 & webhook keluar
 
