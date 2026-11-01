@@ -16,7 +16,7 @@ afterEach(async () => {
   resetUsageCache();
 });
 
-let analytics: () => { status?: number; json: unknown } = () => ({ json: {} });
+let analytics: () => { status?: number; json?: unknown } = () => ({ json: {} });
 const graph = fakeGraph({
   [`GET ${WABA_ID}`]: (c) =>
     c.query.fields === 'service_pricing_policy'
