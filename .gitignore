@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Rahasia & konfigurasi per server (tidak pernah di-commit)
+.env
+.env.*
+!.env.example
+.deploy.env
+DEPLOYMENT.local.md
+
+# Data aplikasi di server
+storage/
+
+# Dibuat aaPanel / Let's Encrypt di folder produksi
+.well-known/
+.htaccess
+.user.ini
+yarn.lock
