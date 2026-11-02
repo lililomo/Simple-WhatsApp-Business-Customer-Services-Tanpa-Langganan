@@ -176,6 +176,8 @@ auto_reply_log   id, contact_id FK, day (tanggal WIB), message_id, created_at   
 push_subscriptions id, user_id FK, session_id FK (CASCADE: ikut terhapus saat logout/sesi habis),
                  endpoint_hash UQ, endpoint, p256dh, auth, user_agent, last_success_at, created_at
 messages.sent_by_system  'auto_reply' untuk balasan otomatis (ditampilkan "Balasan otomatis")
+labels           id, name UQ VARCHAR(40), color CHAR(7) "#RRGGBB", created_by, updated_by, created_at, updated_at
+contact_labels   contact_id FK CASCADE, label_id FK CASCADE, created_by, created_at   PK(contact_id, label_id)
 ```
 
 Catatan:
@@ -310,9 +312,11 @@ GET    /api/users                 (admin)   POST /api/users   PATCH /api/users/:
 GET    /api/connection            (admin)   PUT  /api/connection   (validasi + simpan)
 GET    /api/connection/phone-numbers         POST /api/connection/check
 POST   /api/connection/register   {pin}
-GET    /api/conversations?filter=all|unread|open&q=&cursor=
+GET    /api/conversations?filter=all|unread|open&q=&label=<id>&cursor=
 GET    /api/conversations/:id
 POST   /api/conversations/:id/read
+POST   /api/conversations/:id/unread          (tandai belum dibaca, §18)
+PUT/DELETE /api/conversations/:id/labels/:labelId   (pasang/lepas label kontak)
 GET    /api/conversations/:id/messages?before=<id>&limit=50
 POST   /api/conversations/:id/messages        {type:text|media|template|reaction, …, client_ref}
 POST   /api/messages/:id/retry
@@ -328,6 +332,7 @@ GET    /api/admin/webhook-events?status=failed   POST /api/admin/webhook-events/
 
 # Data bersama semua petugas (perubahan disiarkan lewat SSE library.updated)
 GET/POST /api/quick-replies        PUT/DELETE /api/quick-replies/:id   POST /api/quick-replies/:id/use
+GET/POST /api/labels               PUT/DELETE /api/labels/:id
 GET    /api/stickers               POST /api/stickers (multipart WebP 512×512)   DELETE /api/stickers/:id
 POST   /api/stickers/from-message/:messageId     GET /api/stickers/:id/file
 GET    /api/emoji/recent           POST /api/emoji/usage {emojis[]}
@@ -343,7 +348,7 @@ GET    /api/push/key               POST /api/push/subscribe   POST /api/push/uns
   - `Cache-Control: no-cache, no-transform`
   - `X-Accel-Buffering: no`
 - Heartbeat berupa komentar `: ping` setiap 20 detik, agar koneksi tidak diputus proxy Apache.
-- Event: `message.created`, `message.updated`, `conversation.updated`, `connection.updated`, `library.updated` (`resource`: quick-replies | stickers | emoji | business-hours; klien meng-invalidate query dengan kunci yang sama). Payload pesan berupa DTO lengkap dari `shared/`, sehingga klien bisa langsung memperbarui cache TanStack Query tanpa fetch ulang.
+- Event: `message.created`, `message.updated`, `conversation.updated`, `connection.updated`, `library.updated` (`resource`: quick-replies | stickers | emoji | business-hours | labels; klien meng-invalidate query dengan kunci yang sama, untuk `labels` juga daftar percakapan). Payload pesan berupa DTO lengkap dari `shared/`, sehingga klien bisa langsung memperbarui cache TanStack Query tanpa fetch ulang.
 - Bila event datang saat query yang sama sedang di-fetch, klien mengulang fetch itu (hasil fetch lama akan menimpa cache yang baru diperbarui).
 - Setelah reconnect, klien meng-invalidate query percakapan yang terbuka dan daftar percakapan. Pesan yang terlewat terambil dari situ, jadi `Last-Event-ID` tidak diperlukan.
 - **Uji wajib setelah deploy:** `curl -N https://wa.kppbwi.app/api/events` (dengan cookie). Event harus mengalir tanpa tertahan buffer Apache/mod_deflate.
@@ -420,6 +425,7 @@ Pesan yang dikirim lewat API muncul di inbox UI dengan label "API: <nama key>".
 | `/settings/profile` | Ganti password |
 | `/settings/appearance` | Tema (terang/gelap/ikut Windows), ukuran teks, lebar daftar chat, notifikasi Windows. Disimpan di `localStorage` browser, bukan di server |
 | `/settings/quick-replies` | Kelola balasan cepat bersama (semua petugas) |
+| `/settings/labels` | Kelola label bersama: nama dan warna (semua petugas), lihat §18 |
 | `/settings/business-hours` | Jam kerja, hari libur, balasan otomatis (admin), lihat §15 |
 | `/privacy` | Halaman statis dari server (`server/src/public/privacy.html`), publik |
 
@@ -660,3 +666,14 @@ Hasil go-live 1 Nov 2026: [GO-LIVE.md](GO-LIVE.md).
 - **Batas akurasi:**
   - Hitungan lokal baru lengkap untuk pesan Kirimdev sejak tabel ini ada (2 Nov 2026).
   - Bulan berjalan menganggap zona waktu akun WhatsApp = WIB.
+
+## 18. Label & tandai belum dibaca
+
+- **Label** menempel ke kontak (nomor lawan chat), bukan ke pesan; satu kontak boleh punya beberapa label.
+  - Jenis label dikelola semua petugas di Pengaturan › Label: nama unik (maks. 40 huruf), warna `#RRGGBB` (12 pilihan siap pakai atau warna bebas), maks. 50 label. Label awal dari migrasi `0005`: Pelayanan (biru) dan Penyuluh (hijau).
+  - Tampil sebagai chip berwarna di pojok kanan bawah setiap baris daftar chat (maks. 2, sisanya "+N"), di kepala chat, dan di panel info kontak. Warna teks hitam/putih dipilih otomatis dari luminans warna label.
+  - Dipasang/dilepas lewat menu percakapan (tombol ⌄ saat kursor di atas baris atau klik kanan; tombol ⋮ di kepala chat) atau panel info kontak. Filter "Label" di daftar chat menyaring per label.
+  - Menghapus jenis label melepasnya dari semua kontak (CASCADE).
+- **Tandai belum dibaca** (`POST /api/conversations/:id/unread`): `unread_count` = jumlah pesan masuk (tanpa reaksi) setelah balasan terakhir kita, atau sejak awal bila belum pernah dibalas; minimal 1.
+  - Yang dihitung sebagai balasan: pesan keluar dari petugas, API, atau template. Balasan otomatis (`sent_by_system`) dan pesan berstatus `failed` tidak dihitung.
+  - Status baca berlaku untuk semua petugas, sama seperti `read`. Percakapan yang sedang terbuka ditutup dulu agar tidak langsung ditandai dibaca lagi.

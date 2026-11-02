@@ -8,6 +8,7 @@ import { WhatsAppSettingsPage } from './features/connection/WhatsAppSettingsPage
 import { ApiSettingsPage } from './features/settings/ApiSettingsPage';
 import { AppearancePage } from './features/settings/AppearancePage';
 import { BusinessHoursPage } from './features/settings/BusinessHoursPage';
+import { LabelsPage } from './features/settings/LabelsPage';
 import { QuickRepliesPage } from './features/settings/QuickRepliesPage';
 import { SettingsLayout } from './features/settings/SettingsLayout';
 
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="/settings/appearance" replace /> },
           { path: 'appearance', element: <AppearancePage /> },
           { path: 'quick-replies', element: <QuickRepliesPage /> },
+          { path: 'labels', element: <LabelsPage /> },
           {
             path: 'business-hours',
             element: (

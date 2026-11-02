@@ -7,6 +7,8 @@ export type ConversationFilter = z.infer<typeof conversationFilter>;
 export const listConversationsQuery = z.object({
   filter: conversationFilter.default('all'),
   q: z.string().trim().max(100).optional(),
+  /** Hanya percakapan dengan kontak berlabel ini. */
+  label: z.coerce.number().int().positive().optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });

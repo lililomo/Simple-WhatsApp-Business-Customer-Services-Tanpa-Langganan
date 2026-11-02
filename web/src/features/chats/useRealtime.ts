@@ -65,6 +65,11 @@ export function useRealtime() {
           break;
         case 'library.updated':
           qc.invalidateQueries({ queryKey: [event.resource] });
+          // Nama/warna label tampil di setiap percakapan; label yang dihapus ikut hilang dari kontak.
+          if (event.resource === 'labels') {
+            qc.invalidateQueries({ queryKey: ['conversations'] });
+            qc.invalidateQueries({ queryKey: ['conversation'] });
+          }
           break;
       }
     };

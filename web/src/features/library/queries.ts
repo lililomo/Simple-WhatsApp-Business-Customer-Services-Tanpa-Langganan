@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { BusinessHoursDTO, QuickReplyBody, QuickReplyDTO, RecentEmojiDTO, StickerDTO } from '@wa/shared';
+import type { BusinessHoursDTO, LabelBody, LabelWithUsageDTO, QuickReplyBody, QuickReplyDTO, RecentEmojiDTO, StickerDTO } from '@wa/shared';
 import { api } from '@/lib/api';
 
 // Kunci query sama dengan nama resource di event SSE "library.updated", sehingga semua browser ikut diperbarui.
@@ -8,6 +8,7 @@ export const libraryKeys = {
   stickers: ['stickers'] as const,
   recentEmoji: ['emoji', 'recent'] as const,
   businessHours: ['business-hours'] as const,
+  labels: ['labels'] as const,
 };
 
 export function useQuickReplies() {
@@ -58,4 +59,30 @@ export function useRecentEmoji() {
 
 export function useBusinessHours() {
   return useQuery({ queryKey: libraryKeys.businessHours, queryFn: () => api<BusinessHoursDTO>('/api/business-hours') });
+}
+
+export function useLabels() {
+  return useQuery({
+    queryKey: libraryKeys.labels,
+    queryFn: async () => (await api<{ labels: LabelWithUsageDTO[] }>('/api/labels')).labels,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Simpan label; daftar label dan percakapan diperbarui lewat event SSE "library.updated". */
+export function useSaveLabel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: string; body: LabelBody }) =>
+      api(id ? `/api/labels/${id}` : '/api/labels', { method: id ? 'PUT' : 'POST', body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: libraryKeys.labels }),
+  });
+}
+
+export function useDeleteLabel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/api/labels/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: libraryKeys.labels }),
+  });
 }

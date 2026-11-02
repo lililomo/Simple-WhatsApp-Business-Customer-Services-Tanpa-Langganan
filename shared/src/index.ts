@@ -7,6 +7,7 @@ export * from './templates';
 export * from './send';
 export * from './integration';
 export * from './library';
+export * from './labels';
 export * from './business-hours';
 export * from './push';
 export * from './sso';

@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router';
-import { ArrowLeft, Info, Upload } from 'lucide-react';
+import { ArrowLeft, Info, MoreVertical, Upload } from 'lucide-react';
 import { MAX_ATTACHMENTS } from '@/features/composer/AttachmentDialog';
 import { formatWaId, type MessageDTO } from '@wa/shared';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Alert, Skeleton } from '@/components/ui/misc';
 import { errorMessage } from '@/lib/api';
 import { Avatar, WindowBadge } from './bits';
 import { ContactPanel } from './ContactPanel';
+import { ConversationMenuContent, LabelChips } from './labels';
 import { MessageTimeline } from './MessageTimeline';
 import { useConversation, useMarkRead } from './queries';
 import { Composer, type ComposerHandle } from './Composer';
@@ -95,12 +97,21 @@ export function ChatPane({ conversationId }: { conversationId: string }) {
               <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                 <span>{formatWaId(conv.contact.waId)}</span>
                 <WindowBadge cswExpiresAt={conv.cswExpiresAt} compact />
+                <LabelChips labels={conv.labels} max={3} />
               </div>
             </div>
           </button>
           <Button variant="ghost" size="icon-sm" onClick={() => setShowInfo((v) => !v)} aria-label="Info kontak">
             <Info />
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="Menu percakapan">
+                <MoreVertical />
+              </Button>
+            </DropdownMenuTrigger>
+            <ConversationMenuContent conv={conv} />
+          </DropdownMenu>
         </header>
         <MessageTimeline key={conversationId} conversationId={conversationId} onReply={setReplyTo} />
         <Composer ref={composerRef} conversation={conv} replyTo={replyTo} onClearReply={() => setReplyTo(null)} />

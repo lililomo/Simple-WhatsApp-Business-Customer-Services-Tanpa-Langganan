@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, type InfiniteData, type QueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import {
   windowRemainingMs,
   type ConversationDTO,
@@ -8,21 +8,24 @@ import {
   type MessageDTO,
   type MessagePage,
 } from '@wa/shared';
+import { libraryKeys } from '@/features/library/queries';
 import { api } from '@/lib/api';
 
 export const keys = {
-  conversations: (filter: ConversationFilter, q: string) => ['conversations', filter, q] as const,
+  /** `label` = id label untuk filter, atau '' untuk semua. */
+  conversations: (filter: ConversationFilter, q: string, label: string) => ['conversations', filter, q, label] as const,
   conversation: (id: string) => ['conversation', id] as const,
   messages: (id: string) => ['messages', id] as const,
   summary: ['inbox-summary'] as const,
 };
 
-export function useConversations(filter: ConversationFilter, q: string) {
+export function useConversations(filter: ConversationFilter, q: string, label: string) {
   return useInfiniteQuery({
-    queryKey: keys.conversations(filter, q),
+    queryKey: keys.conversations(filter, q, label),
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ filter });
       if (q) params.set('q', q);
+      if (label) params.set('label', label);
       if (pageParam) params.set('cursor', pageParam);
       return api<ConversationPage>(`/api/conversations?${params}`);
     },
@@ -59,13 +62,40 @@ export function useMarkRead() {
   return useMutation({ mutationFn: (id: string) => api(`/api/conversations/${id}/read`, { method: 'POST' }) });
 }
 
+export function useMarkUnread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<{ conversation: ConversationDTO | null }>(`/api/conversations/${id}/unread`, { method: 'POST' }),
+    onSuccess: ({ conversation }) => {
+      if (conversation) applyConversation(qc, conversation, false);
+      qc.invalidateQueries({ queryKey: keys.summary });
+    },
+  });
+}
+
+/** Pasang (`on`) atau lepas label dari lawan chat percakapan ini. */
+export function useToggleLabel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId, labelId, on }: { conversationId: string; labelId: string; on: boolean }) =>
+      api<{ conversation: ConversationDTO | null }>(`/api/conversations/${conversationId}/labels/${labelId}`, { method: on ? 'PUT' : 'DELETE' }),
+    onSuccess: ({ conversation }, { labelId }) => {
+      if (conversation) applyConversation(qc, conversation, false);
+      // Daftar yang difilter label ini perlu dimuat ulang agar percakapan muncul/hilang di posisi yang benar.
+      qc.invalidateQueries({ queryKey: ['conversations'], predicate: (q) => q.queryKey[3] === labelId });
+      qc.invalidateQueries({ queryKey: libraryKeys.labels });
+    },
+  });
+}
+
 /** Pesan dari halaman infinite query, urut lama → baru. */
 export function flattenMessages(data: InfiniteData<MessagePage> | undefined): MessageDTO[] {
   if (!data) return [];
   return [...data.pages].reverse().flatMap((p) => p.messages);
 }
 
-function matchesFilter(conv: ConversationDTO, filter: ConversationFilter): boolean {
+function matchesFilter(conv: ConversationDTO, filter: ConversationFilter, label: string): boolean {
+  if (label && !conv.labels.some((l) => l.id === label)) return false;
   if (filter === 'unread') return conv.unreadCount > 0;
   if (filter === 'open') return windowRemainingMs(conv.cswExpiresAt) > 0;
   return true;
@@ -76,10 +106,10 @@ export function applyConversation(qc: QueryClient, conv: ConversationDTO, moveTo
   qc.setQueryData(keys.conversation(conv.id), conv);
   for (const [key, data] of qc.getQueriesData<InfiniteData<ConversationPage>>({ queryKey: ['conversations'] })) {
     if (!data) continue;
-    const [, filter, q] = key as unknown as [string, ConversationFilter, string];
+    const [, filter, q, label] = key as unknown as [string, ConversationFilter, string, string];
     const exists = data.pages.some((p) => p.conversations.some((c) => c.id === conv.id));
     let pages = data.pages.map((p) => ({ ...p, conversations: p.conversations.filter((c) => c.id !== conv.id) }));
-    const keep = matchesFilter(conv, filter);
+    const keep = matchesFilter(conv, filter, label);
     if (keep && (exists || (moveToTop && !q))) {
       if (moveToTop || !exists) {
         pages = pages.map((p, i) => (i === 0 ? { ...p, conversations: [conv, ...p.conversations] } : p));

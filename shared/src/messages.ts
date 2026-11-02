@@ -1,3 +1,5 @@
+import type { LabelDTO } from './labels';
+
 export type MessageDirection = 'in' | 'out';
 export type MessageStatus = 'pending' | 'accepted' | 'sent' | 'delivered' | 'read' | 'failed' | 'received';
 export type MediaStatus = 'pending' | 'ready' | 'failed' | 'expired';
@@ -62,6 +64,8 @@ export interface ConversationDTO {
   lastInboundAt: string | null;
   cswExpiresAt: string | null;
   unreadCount: number;
+  /** Label yang ditempel ke kontak ini. */
+  labels: LabelDTO[];
 }
 
 /** Event real-time (SSE) dari server ke browser. */
@@ -70,10 +74,10 @@ export type RealtimeEvent =
   | { type: 'message.updated'; message: MessageDTO }
   | { type: 'conversation.updated'; conversation: ConversationDTO }
   | { type: 'connection.updated' }
-  /** Data bersama berubah (balasan cepat, stiker, riwayat emoji, jam kerja); browser memuat ulang daftarnya. */
+  /** Data bersama berubah (balasan cepat, stiker, riwayat emoji, jam kerja, label); browser memuat ulang daftarnya. */
   | { type: 'library.updated'; resource: SharedResource };
 
-export type SharedResource = 'quick-replies' | 'stickers' | 'emoji' | 'business-hours';
+export type SharedResource = 'quick-replies' | 'stickers' | 'emoji' | 'business-hours' | 'labels';
 
 /** Nomor WhatsApp (format internasional tanpa +) menjadi bentuk yang enak dibaca. */
 export function formatWaId(waId: string): string {

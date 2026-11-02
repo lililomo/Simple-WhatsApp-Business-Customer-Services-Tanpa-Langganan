@@ -5,6 +5,11 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 ## Posisi sekarang
 
 - **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih menerima pesan di sisinya sendiri, tetapi portal kppbwi.app tidak lagi memakainya.
+- **Selesai (2 Nov 2026):** label lawan chat dan tandai belum dibaca (SPEC §18, migrasi `0005`).
+  - Tabel `labels` + `contact_labels`; label awal Pelayanan dan Penyuluh. Pengaturan › Label untuk nama dan warna (semua petugas).
+  - Chip label di pojok kanan bawah daftar chat, kepala chat, dan info kontak; filter "Label" di daftar chat.
+  - Menu percakapan (⌄ saat kursor di atas baris / klik kanan, ⋮ di kepala chat): Label, Tandai belum dibaca / sudah dibaca.
+  - Belum dibaca = pesan masuk sejak balasan terakhir petugas/API (balasan otomatis & pesan gagal tidak dihitung), minimal 1.
 - **Selesai (2 Nov 2026):** kuota pesan service gratis (SPEC §17).
   - Hitungan realtime dari webhook status semua aplikasi di nomor kantor (tabel `message_pricing`, migrasi `0004`), plus laporan `pricing_analytics` Meta dan status `service_pricing_policy`.
   - Kartu "Pesan gratis bulan ini" di daftar chat: angka sisa besar, bar, terpakai & tanggal reset, peringatan saat hampir habis (≤200) atau habis.

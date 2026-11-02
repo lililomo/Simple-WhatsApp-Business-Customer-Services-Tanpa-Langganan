@@ -36,6 +36,13 @@
       "when": 1793559493528,
       "tag": "0004_message_pricing",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1793600500889,
+      "tag": "0005_labels",
+      "breakpoints": true
     }
   ]
 }

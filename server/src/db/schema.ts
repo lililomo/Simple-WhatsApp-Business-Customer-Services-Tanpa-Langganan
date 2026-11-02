@@ -10,6 +10,7 @@ import {
   mediumtext,
   mysqlEnum,
   mysqlTable,
+  primaryKey,
   text,
   uniqueIndex,
   varchar,
@@ -337,6 +338,34 @@ export const quickReplies = mysqlTable('quick_replies', {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+/** Label bersama untuk menandai lawan chat (mis. Pelayanan, Penyuluh); dikelola semua petugas. */
+export const labels = mysqlTable('labels', {
+  id: id(),
+  name: varchar('name', { length: 40 }).notNull().unique(),
+  /** Warna latar label, "#RRGGBB". */
+  color: char('color', { length: 7 }).notNull(),
+  createdBy: ref('created_by'),
+  updatedBy: ref('updated_by'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+/** Label yang ditempel ke kontak (per nomor lawan chat, bukan per pesan). */
+export const contactLabels = mysqlTable(
+  'contact_labels',
+  {
+    contactId: ref('contact_id')
+      .notNull()
+      .references(() => contacts.id, { onDelete: 'cascade' }),
+    labelId: ref('label_id')
+      .notNull()
+      .references(() => labels.id, { onDelete: 'cascade' }),
+    createdBy: ref('created_by'),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.contactId, t.labelId] }), index('contact_labels_label_idx').on(t.labelId)],
+);
 
 /** Koleksi stiker bersama (WebP 512×512). ID media Meta disimpan agar tidak diunggah ulang setiap kirim. */
 export const stickers = mysqlTable('stickers', {

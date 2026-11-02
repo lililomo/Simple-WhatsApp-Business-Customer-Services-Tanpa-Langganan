@@ -4,6 +4,7 @@ import {
   messagePreview,
   type ContactDTO,
   type ConversationDTO,
+  type LabelDTO,
   type MediaDTO,
   type MessageDTO,
   type SenderDTO,
@@ -11,6 +12,7 @@ import {
 import type { Db } from '../../db/client';
 import { apiKeys, contacts, conversations, media, messages, users } from '../../db/schema';
 import { metaErrorMessage } from '../../meta/errors';
+import { labelsByContact } from '../labels/service';
 
 export type ContactRow = typeof contacts.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
@@ -30,7 +32,7 @@ export function contactDTO(c: ContactRow): ContactDTO {
   };
 }
 
-export function conversationDTO(conv: ConversationRow, contact: ContactRow): ConversationDTO {
+export function conversationDTO(conv: ConversationRow, contact: ContactRow, labels: LabelDTO[]): ConversationDTO {
   return {
     id: String(conv.id),
     contact: contactDTO(contact),
@@ -40,6 +42,7 @@ export function conversationDTO(conv: ConversationRow, contact: ContactRow): Con
     lastInboundAt: conv.lastInboundAt?.toISOString() ?? null,
     cswExpiresAt: conv.cswExpiresAt?.toISOString() ?? null,
     unreadCount: conv.unreadCount,
+    labels,
   };
 }
 
@@ -50,7 +53,9 @@ export async function loadConversation(db: Db, id: number): Promise<Conversation
     .innerJoin(contacts, eq(contacts.id, conversations.contactId))
     .where(eq(conversations.id, id))
     .limit(1);
-  return row ? conversationDTO(row.conv, row.contact) : null;
+  if (!row) return null;
+  const labels = await labelsByContact(db, [row.contact.id]);
+  return conversationDTO(row.conv, row.contact, labels.get(row.contact.id) ?? []);
 }
 
 export function mediaDTO(m: MediaRow): MediaDTO {

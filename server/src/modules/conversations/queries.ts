@@ -1,7 +1,8 @@
 import { and, desc, eq, exists, gt, isNotNull, like, lt, ne, or, sql } from 'drizzle-orm';
 import type { ConversationFilter, ConversationPage, MessagePage } from '@wa/shared';
 import type { Db } from '../../db/client';
-import { contacts, conversations, messages } from '../../db/schema';
+import { contactLabels, contacts, conversations, messages } from '../../db/schema';
+import { labelsByContact } from '../labels/service';
 import { conversationDTO, messagesToDTO } from './dto';
 
 // Cursor halaman berikutnya: "<lastMessageAt ms>_<id>".
@@ -25,13 +26,23 @@ export function fulltextQuery(q: string): string | null {
 
 export async function listConversations(
   db: Db,
-  opts: { filter: ConversationFilter; q?: string; cursor?: string; limit: number },
+  opts: { filter: ConversationFilter; q?: string; label?: number; cursor?: string; limit: number },
 ): Promise<ConversationPage> {
-  const { filter, q, limit } = opts;
+  const { filter, q, label, limit } = opts;
   const cursor = decodeCursor(opts.cursor);
   const conds = [isNotNull(conversations.lastMessageAt)];
   if (filter === 'unread') conds.push(gt(conversations.unreadCount, 0));
   if (filter === 'open') conds.push(gt(conversations.cswExpiresAt, new Date()));
+  if (label) {
+    conds.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(contactLabels)
+          .where(and(eq(contactLabels.contactId, conversations.contactId), eq(contactLabels.labelId, label))),
+      ),
+    );
+  }
   if (q) {
     const pattern = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     const digits = q.replace(/\D/g, '');
@@ -73,8 +84,9 @@ export async function listConversations(
     .limit(limit + 1);
   const page = rows.slice(0, limit);
   const last = page.at(-1);
+  const labels = await labelsByContact(db, page.map((r) => r.contact.id));
   return {
-    conversations: page.map((r) => conversationDTO(r.conv, r.contact)),
+    conversations: page.map((r) => conversationDTO(r.conv, r.contact, labels.get(r.contact.id) ?? [])),
     nextCursor: rows.length > limit && last ? `${last.conv.lastMessageAt!.getTime()}_${last.conv.id}` : null,
   };
 }
