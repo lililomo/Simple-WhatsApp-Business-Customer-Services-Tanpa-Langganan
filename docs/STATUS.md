@@ -7,7 +7,8 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 - **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih menerima pesan di sisinya sendiri, tetapi portal kppbwi.app tidak lagi memakainya.
 - **Selesai (2 Nov 2026):** kuota pesan service gratis (SPEC §17).
   - Hitungan realtime dari webhook status semua aplikasi di nomor kantor (tabel `message_pricing`, migrasi `0004`), plus laporan `pricing_analytics` Meta dan status `service_pricing_policy`.
-  - Chip "X dari 1.000 pesan gratis tersisa" di daftar chat.
+  - Kartu "Pesan gratis bulan ini" di daftar chat: angka sisa besar, bar, terpakai & tanggal reset, peringatan saat hampir habis (≤200) atau habis.
+  - Klik kartu untuk rincian: sisa/terpakai/batas, apa yang dihitung, apa yang terjadi bila habis (sesuai status REGULAR/PAID_EXEMPT), tanggal reset, sumber angka.
 - **Selesai (2 Nov 2026):** seluruh otomasi WhatsApp Business di portal kppbwi.app dimatikan atas permintaan pemilik.
   - Billing via WhatsApp tidak dipakai; webhook Kirimdev diabaikan.
   - Worker portal tidak mengirim lewat jalur resmi.
