@@ -114,11 +114,13 @@ export function ChatPane({ conversationId }: { conversationId: string }) {
           </DropdownMenu>
         </header>
         <MessageTimeline key={conversationId} conversationId={conversationId} onReply={setReplyTo} />
-        <Composer ref={composerRef} conversation={conv} replyTo={replyTo} onClearReply={() => setReplyTo(null)} />
+        {/* key: kotak balas dan info kontak milik satu percakapan; tanpa key, isinya terbawa saat pindah chat.
+            Diberi awalan karena MessageTimeline di atasnya (saudara satu induk) sudah memakai id percakapan. */}
+        <Composer key={`composer-${conv.id}`} ref={composerRef} conversation={conv} replyTo={replyTo} onClearReply={() => setReplyTo(null)} />
       </div>
       {showInfo && (
         <div className="fixed inset-0 z-40 md:static md:z-auto">
-          <ContactPanel conversation={conv} onClose={() => setShowInfo(false)} />
+          <ContactPanel key={conv.contact.id} conversation={conv} onClose={() => setShowInfo(false)} />
         </div>
       )}
     </div>

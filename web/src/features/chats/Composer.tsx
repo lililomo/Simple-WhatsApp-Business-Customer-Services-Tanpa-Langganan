@@ -1,4 +1,4 @@
-import { useImperativeHandle, useRef, useState, type ClipboardEvent, type KeyboardEvent, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type ClipboardEvent, type KeyboardEvent, type Ref } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { LayoutTemplate, Paperclip, SendHorizontal, ShieldAlert, Smile, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,6 +35,18 @@ export interface ComposerHandle {
   addFiles: (files: File[]) => void;
 }
 
+/**
+ * Teks yang belum dikirim, per percakapan, selama tab terbuka. Composer dipasang ulang setiap pindah chat
+ * (key di ChatPane), jadi draf tidak pernah terbawa ke chat lain dan muncul lagi saat chat itu dibuka kembali.
+ */
+const drafts = new Map<string, string>();
+
+function autoGrow(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+}
+
 export function Composer({
   ref,
   conversation,
@@ -50,7 +62,7 @@ export function Composer({
   const qc = useQueryClient();
   const now = useNow(30_000);
   const windowOpen = windowRemainingMs(conversation.cswExpiresAt, now) > 0;
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => drafts.get(conversation.id) ?? '');
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [panel, setPanel] = useState<'emoji' | 'sticker' | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
@@ -64,17 +76,28 @@ export function Composer({
   const slashQuery = !slashDismissed && /^\/\S*$/.test(text) ? text.slice(1) : null;
   const slashItems = slashQuery === null ? [] : filterQuickReplies(quickReplies.data ?? [], slashQuery).slice(0, 8);
 
+  useEffect(() => {
+    if (text) drafts.set(conversation.id, text);
+    else drafts.delete(conversation.id);
+  }, [text, conversation.id]);
+  // Draf yang dipulihkan bisa lebih dari satu baris. Kotak kosong dibiarkan setinggi bawaannya.
+  useEffect(() => {
+    if (drafts.has(conversation.id)) autoGrow(textareaRef.current);
+  }, [conversation.id]);
+
+  const failed = (temp: MessageDTO, err: unknown) =>
+    upsertMessage(qc, { ...temp, status: 'failed', error: { code: null, title: null, detail: null, message: errorMessage(err) } });
+
   const send = useMutation({
-    mutationFn: (body: SendMessageBody) => api<{ message: MessageDTO }>(`/api/conversations/${conversation.id}/messages`, { method: 'POST', body }),
+    mutationFn: ({ body }: { body: SendMessageBody; temp: MessageDTO }) =>
+      api<{ message: MessageDTO }>(`/api/conversations/${conversation.id}/messages`, { method: 'POST', body }),
     onSuccess: ({ message }) => upsertMessage(qc, message),
+    // Di tingkat mutasi, bukan per mutate(): callback per mutate() tidak jalan setelah Composer dilepas
+    // (pindah chat) atau saat kiriman berikutnya sudah dimulai, sehingga gelembung sementara macet "pending".
+    onError: (err, { temp }) => failed(temp, err),
   });
 
-  const resize = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  };
+  const resize = () => autoGrow(textareaRef.current);
 
   const setTextAndCaret = (next: string, caret: number) => {
     setText(next);
@@ -128,15 +151,13 @@ export function Composer({
     upsertMessage(qc, temp);
     return temp;
   };
-  const failed = (temp: MessageDTO, err: unknown) =>
-    upsertMessage(qc, { ...temp, status: 'failed', error: { code: null, title: null, detail: null, message: errorMessage(err) } });
 
   const sendText = () => {
     const trimmed = text.trim();
     if (!windowOpen || !trimmed) return;
     const clientRef = crypto.randomUUID();
     const temp = optimistic(clientRef, { text: trimmed });
-    send.mutate({ type: 'text', text: trimmed, replyTo: replyTo?.id, clientRef }, { onError: (err) => failed(temp, err) });
+    send.mutate({ body: { type: 'text', text: trimmed, replyTo: replyTo?.id, clientRef }, temp });
     // Riwayat emoji bersama: dicatat dari emoji yang benar-benar dikirim.
     const emojis = extractEmojis(trimmed);
     if (emojis.length) void api('/api/emoji/usage', { method: 'POST', body: { emojis: emojis.slice(0, 50) } }).catch(() => undefined);
@@ -150,7 +171,7 @@ export function Composer({
     const clientRef = crypto.randomUUID();
     const media: MediaDTO = { id: `tmp-${sticker.id}`, mimeType: 'image/webp', fileName: null, fileSize: null, status: 'ready', url: sticker.url };
     const temp = optimistic(clientRef, { type: 'sticker', media });
-    send.mutate({ type: 'sticker', stickerId: sticker.id, replyTo: replyTo?.id, clientRef }, { onError: (err) => failed(temp, err) });
+    send.mutate({ body: { type: 'sticker', stickerId: sticker.id, replyTo: replyTo?.id, clientRef }, temp });
     onClearReply();
   };
 
@@ -167,8 +188,9 @@ export function Composer({
         const form = new FormData();
         form.append('file', file, file.name);
         const { media } = await api<{ media: MediaDTO }>('/api/media', { method: 'POST', body: form });
-        await send.mutateAsync({ type: 'media', mediaId: media.id, caption: caption || undefined, replyTo: reply?.id, clientRef });
+        await send.mutateAsync({ body: { type: 'media', mediaId: media.id, caption: caption || undefined, replyTo: reply?.id, clientRef }, temp });
       } catch (err) {
+        // Kegagalan unggah belum sampai ke mutasi; kegagalan kirim sudah ditandai onError (menandai ulang tidak apa-apa).
         failed(temp, err);
       } finally {
         reply = null;
