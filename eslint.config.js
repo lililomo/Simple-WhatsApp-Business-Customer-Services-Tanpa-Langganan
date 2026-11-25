@@ -23,7 +23,7 @@ export default tseslint.config(
     languageOptions: { globals: globals.browser },
   },
   {
-    files: ['server/**/*.ts', 'shared/**/*.ts', 'scripts/**/*.ts', '*.js'],
+    files: ['server/**/*.ts', 'shared/**/*.ts', 'scripts/**/*.ts', 'deploy/**/*.mjs', '*.js'],
     languageOptions: { globals: globals.node },
   },
   {

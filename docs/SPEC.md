@@ -498,7 +498,8 @@ Akses SSH, alamat server, dan catatan site lain ada di `DEPLOYMENT.local.md` (ti
 ├── storage/media/                       dipertahankan
 ├── releases/<YYYYmmdd-HHMMSS>-<sha7>/   kode + hasil build per deploy (simpan 3 terbaru)
 ├── app -> releases/<aktif>              symlink yang dijalankan aaPanel
-├── bin/                                 cli.sh, restart.sh, watchdog.sh, rollback.sh (disalin dari deploy/server/bin)
+├── bin/                                 cli.sh, restart.sh, watchdog.sh, rollback.sh, maintenance.sh (disalin dari deploy/server/bin)
+├── maintenance/                         server.mjs (halaman pemeliharaan) + aapanel_project.py, dipasang oleh maintenance.sh
 └── placeholder/server.js                halaman sementara sebelum deploy pertama
 ```
 
@@ -508,7 +509,8 @@ Pengembangan dan deploy dilakukan dari laptop, oleh sesi Claude Code di folder p
 
 1. **Di laptop:** working tree bersih, lalu `npm run check` (lint, typecheck, test) harus hijau. Jika tidak, deploy dibatalkan.
 2. `git archive HEAD | ssh <host> "tar -x -C <APP_DIR>/releases/<rel>"`. Host dan folder dibaca dari `deploy/deploy.local.env` (tidak di-commit).
-3. `ssh <host> "bash <APP_DIR>/releases/<rel>/deploy/server/activate.sh <rel> <sha>"`. Di server, `activate.sh`:
+3. **Halaman pemeliharaan** (bawaan sejak 25 Nov 2026; lewati dengan `--no-maintenance`): `releases/<rel>/deploy/server/bin/maintenance.sh on`, lihat §12.3a. Dipasang baru setelah cek dan unggah selesai, supaya situs tertutup sesingkat mungkin (selama build dan restart).
+4. `ssh <host> "bash <APP_DIR>/releases/<rel>/deploy/server/activate.sh <rel> <sha>"`. Di server, `activate.sh`:
    1. Mengunci proses dengan `flock`. Deskriptor kunci ditutup saat memanggil restart (`9>&-`), agar proses Node tidak mewarisi kunci.
    2. Menaruh Node 24 di PATH, lalu menjalankan `npm ci` dan `npm run build` sebagai `www` di folder release, dengan `APP_VERSION=<sha>`. Folder release tidak punya `.git`, jadi versi diberikan lewat env. Jika gagal: folder release dihapus, produksi tidak berubah, exit 1.
    3. Migrasi: `node --env-file=<APP_DIR>/.env releases/<rel>/server/dist/cli.js db:migrate` sebagai `www`. **Migrasi wajib additive**, karena rollback hanya mengembalikan kode, bukan skema.
@@ -522,7 +524,28 @@ Pengembangan dan deploy dilakukan dari laptop, oleh sesi Claude Code di folder p
       - folder release yang gagal dihapus (log disalin ke `/www/wwwlogs/wa_kppbwi_app-activate-failed.log`), agar tidak pernah menjadi target rollback;
       - exit 1.
    9. Menghapus release selain 3 terbaru.
-4. Setelah sukses: `git push` ke GitHub sebagai cadangan.
+5. Aktivasi yang berhasil mengakhiri pemeliharaan dengan sendirinya (langkah 4.6–4.8 menjalankan lagi aplikasi). Jika aktivasi gagal, `bin/maintenance.sh off` menjalankan lagi release lama.
+6. Setelah sukses: `git push` ke GitHub sebagai cadangan.
+
+Langkah 3–5 dikirim sebagai satu perintah SSH dengan `SIGHUP`/`SIGPIPE` diabaikan: bila koneksi dari laptop putus di tengah, aktivasi tetap selesai di server dan situs tidak tertinggal di mode pemeliharaan.
+
+### 12.3a Mode pemeliharaan (`bin/maintenance.sh`)
+
+Selama deploy, perintah jalan Node project aaPanel diganti sementara menjadi `node --env-file=.env maintenance/server.mjs`: server kecil tanpa dependensi (`deploy/server/maintenance/server.mjs`) di port yang sama.
+
+| Permintaan | Jawaban selama pemeliharaan |
+|---|---|
+| `GET /healthz` | `200 {"ok":true,"app":"maintenance"}`. Tanpa `version`, jadi tidak pernah dianggap aplikasi sehat oleh healthcheck deploy; watchdog tetap diam |
+| `/webhooks/*` | `503`. **Wajib bukan 2xx**: Meta mengirim ulang webhook yang gagal, sehingga pesan masuk tertunda, tidak hilang |
+| `/api/*`, `/sso/revoke`, `/sso/stats` | `503` JSON `{"error":{"code":"maintenance",…}}` + `Retry-After: 60` |
+| lainnya | `503` halaman "Sedang pemeliharaan" yang memuat ulang sendiri tiap 15 detik |
+
+- `maintenance.sh on`: menyalin `server.mjs`, `aapanel_project.py`, dan dirinya sendiri ke `<APP_DIR>/maintenance/` dan `<APP_DIR>/bin/` (supaya `off` tetap bisa jalan bila release asalnya dihapus karena build gagal), mengganti perintah jalan, restart, lalu menunggu `/healthz` melaporkan `maintenance`. Jika halaman tidak menjawab dalam 40 detik, aplikasi dijalankan lagi dan skrip keluar 1 (deploy batal, release yang baru diunggah dihapus).
+- `maintenance.sh off`: mengembalikan perintah jalan aplikasi, restart, menunggu `/healthz` berisi `version`. Tidak me-restart bila aplikasi sudah berjalan.
+- `maintenance.sh status`: `pemeliharaan` atau `aplikasi berjalan`.
+- Memakai kunci `flock` yang sama dengan deploy; `AAPANEL_STUB` didukung untuk uji sandbox.
+- Tab petugas yang sudah terbuka tidak berpindah ke halaman pemeliharaan (SPA sudah termuat; permintaannya saja yang gagal) dan perlu dimuat ulang setelah deploy.
+- Uji sandbox 25 Nov 2026 (aaPanel di-stub, port terpisah): pasang, lepas, lepas saat aplikasi sudah berjalan, halaman pemeliharaan rusak (aplikasi kembali, exit 1), aktivasi berhasil lalu `off` tanpa restart, build gagal dengan release terhapus, pasang manual dari `bin/`, kunci dipegang proses lain, dan kunci tidak diwarisi proses Node. Semuanya lolos.
 
 Aturan penulisan skrip, dari review 1 Nov 2026:
 - Setiap langkah dicek eksplisit (`|| { log …; exit 1; }`). Jangan mengandalkan `set -e` di dalam fungsi yang dipanggil dari `if`, karena bash mengabaikannya di sana.
@@ -531,6 +554,7 @@ Aturan penulisan skrip, dari review 1 Nov 2026:
 
 Operasional:
 - Log ringkas: `/www/wwwlogs/wa_kppbwi_app-deploy.log`.
+- Situs tersangkut di mode pemeliharaan (mis. deploy dihentikan paksa): `ssh <host> "bash <APP_DIR>/bin/maintenance.sh off"`.
 - Rollback manual: `scripts/deploy.sh --rollback` (menjalankan `bin/rollback.sh` di server). Perintah ini mengarahkan symlink ke release sebelumnya, lalu restart dan healthcheck. Jika release itu tidak sehat, symlink kembali ke release semula.
 - Uji sandbox 1 Nov 2026 (project aaPanel di-stub, port terpisah): deploy pertama dari placeholder, build gagal, versi healthz salah + rollback otomatis, rollback manual, watchdog, dan kunci deploy tidak diwarisi proses Node. Semuanya lolos.
 - **Kontrak untuk aplikasi:**

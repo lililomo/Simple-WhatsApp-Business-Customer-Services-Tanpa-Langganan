@@ -5,6 +5,17 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 ## Posisi sekarang
 
 - **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih menerima pesan di sisinya sendiri, tetapi portal kppbwi.app tidak lagi memakainya.
+- **Selesai (25 Nov 2026):** mode pemeliharaan saat deploy (SPEC §12.3a), atas permintaan pemilik.
+  - `scripts/deploy.sh` kini memasang halaman "Sedang pemeliharaan" setelah cek dan unggah, lalu mengaktifkan release; aktivasi yang berhasil menjalankan lagi aplikasi. `--no-maintenance` untuk melewatinya.
+  - `bin/maintenance.sh on|off|status` di server; webhook Meta dijawab 503 selama pemeliharaan agar dikirim ulang (pesan tidak hilang).
+  - Diuji di sandbox server dengan aaPanel di-stub.
+  - Keadaan produksi sebelum deploy ini ditandai tag `prod-20261102-77860a1`.
+- **Selesai (25 Nov 2026):** perbaikan isi yang terbawa saat pindah chat.
+  - Kotak balas dan panel info kontak kini dipasang ulang per percakapan (`key` di `ChatPane`). Sebelumnya teks yang belum dikirim ikut pindah ke chat lain (risiko salah kirim), dan "Simpan nama" bisa menimpa nama kontak lain.
+  - Draf disimpan per percakapan selama tab terbuka, jadi muncul lagi saat chat itu dibuka kembali.
+  - Penanda gagal kirim dipindah ke tingkat mutasi: gelembung sementara tidak lagi macet "pending" bila kiriman gagal setelah petugas pindah chat atau mengirim beruntun.
+  - Test baru `web/src/features/chats/ChatPane.test.tsx` (gagal pada kode lama, lulus pada kode baru). Diuji juga di browser lokal.
+  - Lingkungan kerja pindah ke laptop baru: Node 24.22, `.env` lokal dan `deploy/deploy.local.env` dibuat ulang; `APP_KEY` lokal baru, jadi kredensial WhatsApp di `wainbox_dev` tidak bisa didekripsi (tandai dibaca membalas 500 di lokal saja).
 - **Selesai (2 Nov 2026):** label lawan chat dan tandai belum dibaca (SPEC §18, migrasi `0005`).
   - Tabel `labels` + `contact_labels`; label awal Pelayanan dan Penyuluh. Pengaturan › Label untuk nama dan warna (semua petugas).
   - Chip label di pojok kanan bawah daftar chat, kepala chat, dan info kontak; filter "Label" di daftar chat.
