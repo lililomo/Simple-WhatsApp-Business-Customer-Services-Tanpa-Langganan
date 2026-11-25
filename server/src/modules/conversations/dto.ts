@@ -43,6 +43,7 @@ export function conversationDTO(conv: ConversationRow, contact: ContactRow, labe
     cswExpiresAt: conv.cswExpiresAt?.toISOString() ?? null,
     unreadCount: conv.unreadCount,
     labels,
+    aosOffer: conv.aosOfferMessageId != null,
   };
 }
 

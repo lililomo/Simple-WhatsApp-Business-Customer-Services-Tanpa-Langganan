@@ -32,6 +32,8 @@ import { quickReplyRoutes } from './modules/quick-replies/routes';
 import { ssoRoutes } from './modules/sso/routes';
 import { usageRoutes } from './modules/usage/routes';
 import { emojiRoutes, stickerRoutes } from './modules/stickers/routes';
+import { knowledgeRoutes } from './modules/knowledge/routes';
+import { assistantConversationRoutes, assistantRoutes } from './modules/assistant/routes';
 import { registerSpa } from './spa';
 import type { AppDeps, AppInstance } from './types';
 import { APP_VERSION } from './version';
@@ -119,6 +121,9 @@ export async function buildApp(deps: AppDeps, opts: BuildOptions = {}): Promise<
   await app.register(labelRoutes, { prefix: '/api/labels' });
   await app.register(stickerRoutes, { prefix: '/api/stickers' });
   await app.register(emojiRoutes, { prefix: '/api/emoji' });
+  await app.register(knowledgeRoutes, { prefix: '/api/knowledge' });
+  await app.register(assistantRoutes, { prefix: '/api/assistant' });
+  await app.register(assistantConversationRoutes, { prefix: '/api/conversations' });
   await app.register(businessHoursRoutes, { prefix: '/api/business-hours' });
   await app.register(pushRoutes, { prefix: '/api/push' });
   await app.register(usageRoutes, { prefix: '/api/usage' });

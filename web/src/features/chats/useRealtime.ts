@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router';
 import type { RealtimeEvent } from '@wa/shared';
+import { setAosLive } from '@/features/assistant/live';
+import { aosKeys, upsertAosMessage } from '@/features/assistant/queries';
 import { api, ApiError } from '@/lib/api';
 import { playIncomingSound, showBrowserNotification } from '@/lib/notify';
 import { pushState } from '@/lib/push';
@@ -75,6 +77,21 @@ export function useRealtime() {
             qc.invalidateQueries({ queryKey: ['conversation'] });
           }
           break;
+        case 'assistant.updated': {
+          upsertAosMessage(qc, event.message);
+          // Sesi yang belum ada di cache (masih dimuat atau gagal dimuat) tidak bisa dipasangi pesan; muat ulang.
+          const key = aosKeys.thread(event.conversationId);
+          if (qc.getQueryData(key) === undefined) void qc.invalidateQueries({ queryKey: key });
+          else refetchIfInFlight(key);
+          break;
+        }
+        case 'assistant.delta':
+          // Teks yang sedang mengalir tidak masuk cache query: hanya gelembung jawaban itu yang dirender ulang.
+          setAosLive(event.messageId, { text: event.text, steps: event.steps });
+          break;
+        case 'assistant.thread':
+          qc.invalidateQueries({ queryKey: aosKeys.thread(event.conversationId) });
+          break;
       }
     };
 
@@ -111,9 +128,17 @@ export function useRealtime() {
       source?.close();
       const es = new EventSource('/api/events');
       source = es;
-      for (const type of ['message.created', 'message.updated', 'conversation.updated', 'connection.updated', 'library.updated']) {
-        es.addEventListener(type, handle as EventListener);
-      }
+      const types: RealtimeEvent['type'][] = [
+        'message.created',
+        'message.updated',
+        'conversation.updated',
+        'connection.updated',
+        'library.updated',
+        'assistant.updated',
+        'assistant.delta',
+        'assistant.thread',
+      ];
+      for (const type of types) es.addEventListener(type, handle as EventListener);
       es.addEventListener('hello', () => {
         attempts = 0;
         // Setelah tersambung ulang, ambil ulang data agar event yang terlewat tidak hilang.
@@ -121,6 +146,7 @@ export function useRealtime() {
           qc.invalidateQueries({ queryKey: ['conversations'] });
           qc.invalidateQueries({ queryKey: ['messages'] });
           qc.invalidateQueries({ queryKey: keys.summary });
+          qc.invalidateQueries({ queryKey: aosKeys.threads });
         }
         disconnected = false;
       });

@@ -1,3 +1,4 @@
+import type { AosMessageDTO } from './assistant';
 import type { LabelDTO } from './labels';
 
 export type MessageDirection = 'in' | 'out';
@@ -66,6 +67,8 @@ export interface ConversationDTO {
   unreadCount: number;
   /** Label yang ditempel ke kontak ini. */
   labels: LabelDTO[];
+  /** AOS punya tawaran bantuan yang belum dijawab untuk percakapan ini (SPEC §19). */
+  aosOffer: boolean;
 }
 
 /** Event real-time (SSE) dari server ke browser. */
@@ -75,9 +78,15 @@ export type RealtimeEvent =
   | { type: 'conversation.updated'; conversation: ConversationDTO }
   | { type: 'connection.updated' }
   /** Data bersama berubah (balasan cepat, stiker, riwayat emoji, jam kerja, label); browser memuat ulang daftarnya. */
-  | { type: 'library.updated'; resource: SharedResource };
+  | { type: 'library.updated'; resource: SharedResource }
+  /** Pesan di sesi AOS dibuat atau berubah (tawaran, pertanyaan petugas, jawaban, galat). */
+  | { type: 'assistant.updated'; conversationId: string; message: AosMessageDTO }
+  /** Teks jawaban AOS yang sedang ditulis; `text` selalu teks lengkap sejauh ini, bukan potongan. */
+  | { type: 'assistant.delta'; conversationId: string; messageId: string; text: string; steps: string[] }
+  /** Sesi AOS percakapan ini berubah seluruhnya (mis. topik baru); browser memuat ulang sesinya. */
+  | { type: 'assistant.thread'; conversationId: string };
 
-export type SharedResource = 'quick-replies' | 'stickers' | 'emoji' | 'business-hours' | 'labels';
+export type SharedResource = 'quick-replies' | 'stickers' | 'emoji' | 'business-hours' | 'labels' | 'knowledge' | 'assistant';
 
 /** Nomor WhatsApp (format internasional tanpa +) menjadi bentuk yang enak dibaca. */
 export function formatWaId(waId: string): string {

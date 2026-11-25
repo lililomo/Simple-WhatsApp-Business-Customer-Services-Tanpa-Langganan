@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useInboxSummary } from '@/features/chats/queries';
 import { useRealtime } from '@/features/chats/useRealtime';
 import { Link, NavLink, Outlet, useMatch } from 'react-router';
-import { LogOut, MessageCircle, MessagesSquare, Moon, Palette, Settings, Sun } from 'lucide-react';
+import { BookOpen, LogOut, MessageCircle, MessagesSquare, Moon, Palette, Settings, Sun } from 'lucide-react';
 import { useLogout, useMe } from '@/features/auth/hooks';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -69,6 +69,9 @@ export function AppLayout() {
               </span>
             )}
           </span>
+        </RailLink>
+        <RailLink to="/pustaka" label="Pustaka">
+          <BookOpen className="size-5" />
         </RailLink>
         <RailLink to="/settings" label="Pengaturan">
           <Settings className="size-5" />

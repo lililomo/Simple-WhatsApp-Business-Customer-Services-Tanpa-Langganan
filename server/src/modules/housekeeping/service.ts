@@ -2,9 +2,12 @@ import { unlink } from 'node:fs/promises';
 import { and, eq, inArray, like, lt, ne, or } from 'drizzle-orm';
 import { idempotencyKeys, media, outboundWebhookDeliveries, sessions, webhookEvents } from '../../db/schema';
 import type { AppDeps } from '../../types';
+import { purgeDeletedKnowledge } from '../knowledge/service';
 import { mediaAbsolutePath } from '../media/service';
 
 const DAY = 24 * 60 * 60 * 1000;
+/** Dokumen Pustaka di tempat sampah dihapus permanen setelah sekian hari (SPEC §19.6). */
+const KNOWLEDGE_TRASH_DAYS = 30;
 
 export interface HousekeepingResult {
   sessions: number;
@@ -12,11 +15,13 @@ export interface HousekeepingResult {
   deliveries: number;
   idempotencyKeys: number;
   mediaFiles: number;
+  knowledgeDocuments: number;
 }
 
 /**
  * Bersih-bersih harian (cron aaPanel "WA Inbox – Housekeeping"): sesi kedaluwarsa, event webhook dan
- * delivery lama, idempotency key > 24 jam, serta file media yang melewati MEDIA_RETENTION_DAYS.
+ * delivery lama, idempotency key > 24 jam, file media yang melewati MEDIA_RETENTION_DAYS, serta dokumen
+ * Pustaka yang sudah 30 hari di tempat sampah.
  */
 export async function runHousekeeping(deps: AppDeps, now = new Date()): Promise<HousekeepingResult> {
   const { db } = deps.database;
@@ -49,11 +54,14 @@ export async function runHousekeeping(deps: AppDeps, now = new Date()): Promise<
     }
   }
 
+  const knowledgeDocuments = await purgeDeletedKnowledge(deps, ago(KNOWLEDGE_TRASH_DAYS));
+
   return {
     sessions: s.affectedRows,
     webhookEvents: w.affectedRows,
     deliveries: d.affectedRows,
     idempotencyKeys: i.affectedRows,
     mediaFiles,
+    knowledgeDocuments,
   };
 }

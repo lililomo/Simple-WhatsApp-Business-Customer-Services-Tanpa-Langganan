@@ -724,3 +724,117 @@ Hasil go-live 1 Nov 2026: [GO-LIVE.md](GO-LIVE.md).
 - **Tandai belum dibaca** (`POST /api/conversations/:id/unread`): `unread_count` = jumlah pesan masuk (tanpa reaksi) setelah balasan terakhir kita, atau sejak awal bila belum pernah dibalas; minimal 1.
   - Yang dihitung sebagai balasan: pesan keluar dari petugas, API, atau template. Balasan otomatis (`sent_by_system`) dan pesan berstatus `failed` tidak dihitung.
   - Status baca berlaku untuk semua petugas, sama seperti `read`. Percakapan yang sedang terbuka ditutup dulu agar tidak langsung ditandai dibaca lagi.
+
+## 19. AOS (Asisten OSing) dan Pustaka
+
+Asisten AI untuk **petugas**: panel kaca di kanan ruang chat yang menawarkan dan menyusun rekomendasi jawaban. AOS **tidak pernah mengirim pesan ke WhatsApp**; petugas menekan "Pakai", menyunting, lalu mengirim sendiri. Tipe dan skema bersama ada di `shared/src/assistant.ts` dan `shared/src/knowledge.ts` (sumber kebenaran bentuk data). Migrasi `0006`.
+
+### 19.1 Model data
+
+```
+ai_threads     id, conversation_id UQ FK CASCADE, topic_started_at, created_at, updated_at
+               (satu sesi per percakapan = per nomor WhatsApp, dipakai bersama semua petugas)
+ai_messages    id, thread_id FK CASCADE, kind ENUM(offer,user,answer,error),
+               status ENUM(pending,running,done,error,cancelled), text MEDIUMTEXT, data JSON,
+               offer_state ENUM(open,answered,dismissed), trigger_message_id, created_by_user_id,
+               provider, model, duration_ms, error, feedback (1/-1), feedback_by, used_at, used_by,
+               saved_document_id, created_at, completed_at
+ai_calls       id, purpose, conversation_id, user_id, provider, model, ok, error, input_tokens,
+               output_tokens, cost_micro_usd, duration_ms, meta JSON, created_at
+kb_documents   id, kind ENUM(file,note), title, description, tags JSON, file_name, mime_type, file_size,
+               sha256, storage_path (knowledge/<sha256>.<ext>), status ENUM(processing,ready,failed), error,
+               page_count, char_count, summary, is_active, is_official, valid_until, uploaded_by,
+               deleted_at, deleted_by, created_at, updated_at
+kb_chunks      id, document_id FK CASCADE, seq, page, heading, text MEDIUMTEXT  FULLTEXT(text)
+conversations  + aos_offer_message_id (tawaran AOS yang masih terbuka; diekspos sebagai ConversationDTO.aosOffer)
+app_settings   + assistant (AssistantSettings), assistant_credentials ({subscription?,api?} terenkripsi),
+                 assistant_provider_state
+```
+
+### 19.2 Koneksi ke Claude: dua jalur dengan urutan prioritas
+
+- Jalur `subscription` (token dari `claude setup-token`) dan `api` (kunci API). Admin menghubungkan keduanya di Pengaturan › Asisten AI dan mengatur urutannya (`settings.order`: pertama = utama).
+- Keduanya dijalankan lewat **Claude Agent SDK resmi** (`@anthropic-ai/claude-agent-sdk`) sebagai proses anak: kredensial diberikan lewat env `CLAUDE_CODE_OAUTH_TOKEN` atau `ANTHROPIC_API_KEY`, `CLAUDE_CONFIG_DIR` = `STORAGE_DIR/claude` (terpisah dari Claude Code lain di server), `cwd` = folder kerja sementara (bukan folder proyek), `settingSources: []`, `persistSession: false`.
+- Alat bawaan dibatasi ke `WebSearch` dan `WebFetch`; keduanya melewati `canUseTool` yang memaksa daftar situs yang diizinkan (`settings.sources.domains`). Alat Pustaka (`cari_pustaka`, `baca_pustaka`) adalah server MCP dalam proses.
+- **Perpindahan otomatis:** galat batas pemakaian, saldo, kelebihan beban, atau kredensial ditolak pada jalur utama → permintaan diulang sekali di jalur berikutnya; jalur yang kena batas diistirahatkan sampai waktu reset (atau 15 menit). Galat lain tidak memicu perpindahan.
+- Token dan kunci disimpan terenkripsi (`APP_KEY`), tidak pernah dikirim balik ke browser (hanya 4 karakter terakhir).
+- Biner Claude Code (±400 MB) disimpan satu salinan per versi di `<APP_DIR>/vendor/`, bukan di tiap release (lihat `activate.sh`). Versi yang tidak lagi dipakai release mana pun dihapus saat deploy.
+- Proses anak tidak mewarisi rahasia aplikasi (`DATABASE_URL`, `APP_KEY`, secret SSO) dan tidak punya alat shell atau berkas.
+- `activate.sh` menaikkan batas memori Node project di aaPanel menjadi minimal 2048 MB (tidak pernah menurunkan).
+- Anggaran `budget.monthlyUsd` hanya berlaku untuk jalur API; bila habis, jalur API dilewati sampai bulan berikutnya (WIB).
+- Uji koneksi memakai model jawaban dengan effort rendah dan tidak berpindah jalur.
+
+### 19.3 Deteksi awal dan mode
+
+Pesan masuk baru → tunggu `triage.debounceSec` → model deteksi (bawaan Haiku 5.5) mengembalikan kategori, tindakan (`diam` | `tawarkan` | `jawab`), ringkasan, sampai 4 pilihan, topik, dan label yang cocok.
+
+| Mode (`triage.mode`) | Perilaku |
+|---|---|
+| `offer` (bawaan) | `tawarkan`/`jawab` → pesan `offer` berisi ringkasan + tombol pilihan; `conversations.aos_offer_message_id` diisi; panel terbuka sendiri di browser yang sedang membuka chat itu. Rekomendasi baru dibuat setelah petugas menekan pilihan |
+| `auto` | `jawab` → rekomendasi langsung dibuat; `tawarkan` → seperti `offer` |
+| `manual` | tanpa deteksi |
+
+Model deteksi menjawab dengan satu objek JSON di dalam teks (bentuknya ditulis di instruksi); hasil yang tidak terbaca dianggap `diam`. Reaksi dan stiker tidak dinilai. Bila petugas sudah membalas sendiri sebelum jeda habis atau selagi dinilai, tidak ada tawaran.
+
+Siklus tawaran:
+
+- Paling banyak satu tawaran terbuka per percakapan. Tawaran baru menutup yang lama (`dismissed`).
+- Ditutup sebagai `answered` saat petugas memilih salah satu pilihan, bertanya sendiri ke AOS, atau menekan "Pakai" pada sebuah rekomendasi; `dismissed` saat petugas menekan "Tidak perlu", memulai topik baru, atau setelah 12 jam tanpa tanggapan.
+- Pilihan berisi `labelId` ("Pasang label …", muncul bila deteksi menemukan label yang cocok dan belum terpasang) memasang label ke kontak; pilihan itu lalu hilang dan tawaran tetap terbuka selama masih ada pilihan lain.
+- Mode `auto`: tawaran tetap dibuat (agar panel terbuka dan daftar chat bertanda), berisi pilihan lain selain yang sudah langsung dikerjakan.
+
+### 19.4 Jawaban
+
+Model menulis dengan bagian bertanda `<draf>` (balasan siap pakai, format WhatsApp), `<catatan>` (untuk petugas), `<keyakinan>` (tinggi/sedang/rendah), `<sumber>` (satu per baris: `P<id> hlm <n>` untuk Pustaka, atau alamat web). `parseAosAnswer()` di `shared` membaca teks yang masih mengalir maupun hasil akhir. Sumber disaring di server: dokumen Pustaka harus benar-benar dibaca lewat alat pada jawaban itu, dan alamat web harus berada di daftar situs yang diizinkan.
+
+Satu percakapan hanya menyusun satu jawaban pada satu waktu (permintaan kedua dijawab 409); seluruh aplikasi menjalankan paling banyak dua panggilan Claude bersamaan. Jawaban yang masih berstatus `pending`/`running` saat aplikasi dinyalakan ulang ditandai gagal. Tindakan cepat: `summarize` dan `explain` dijawab dengan teks biasa (tanpa `<draf>`); `shorten`, `friendlier`, dan `regenerate` bekerja pada jawaban `targetId`.
+
+"Simpan ke Pustaka" (Bank Jawaban) membuat catatan bertag `bank jawaban`; "Simpan sebagai balasan cepat" membuat balasan cepat. Keduanya menyimpan draf yang sudah disamarkan lagi, supaya data WP tidak ikut terpakai untuk WP lain.
+
+Isi chat WP disamarkan sebelum dikirim (`maskSensitive`: NIK/NPWP, telepon, email → `[ID-1]` dst.) dan dikembalikan di tampilan petugas. Lampiran gambar dari pesan WP terbaru (maks. 3) ikut dikirim bila `privacy.attachments` menyala.
+
+### 19.5 API (semua butuh sesi; `(admin)` = khusus admin)
+
+```
+GET    /api/assistant/status                         → AssistantStatusDTO
+GET    /api/assistant/settings            (admin)   → AssistantSettingsDTO
+PUT    /api/assistant/settings            (admin)   body AssistantSettings → AssistantSettingsDTO
+PUT    /api/assistant/credentials/:provider (admin)  body {secret} → AssistantSettingsDTO
+DELETE /api/assistant/credentials/:provider (admin)  → AssistantSettingsDTO
+POST   /api/assistant/credentials/:provider/test (admin) → AosConnectionTestDTO
+GET    /api/assistant/usage?month=YYYY-MM  (admin)   → AosUsageDTO
+POST   /api/assistant/playground           (admin)   body {text} → AosPlaygroundDTO
+
+GET    /api/conversations/:id/assistant              → AosThreadDTO
+POST   /api/conversations/:id/assistant/messages     body aosAskBody → 202 {messages: AosMessageDTO[]}
+POST   /api/conversations/:id/assistant/reset        → AosThreadDTO   (topik baru)
+POST   /api/assistant/messages/:id/cancel            → {message}
+POST   /api/assistant/messages/:id/dismiss           → {message}      (tutup tawaran)
+POST   /api/assistant/messages/:id/feedback          body {value: 1|-1|null} → {message}
+POST   /api/assistant/messages/:id/used              → {message}      (draf dipakai)
+POST   /api/assistant/messages/:id/save              body {target: library|quick-reply, title} → {message}
+
+GET    /api/knowledge?q=&tag=&trash=0|1              → KbListDTO
+POST   /api/knowledge              (multipart, field "file")  → 201 {document}
+POST   /api/knowledge/notes        body kbNoteBody   → 201 {document}
+PATCH  /api/knowledge/:id          body kbUpdateBody → {document}
+DELETE /api/knowledge/:id                            → {ok:true}      (ke tempat sampah)
+POST   /api/knowledge/:id/restore                    → {document}
+POST   /api/knowledge/:id/reprocess                  → {document}
+GET    /api/knowledge/:id/file                       → berkas asli
+```
+
+Event SSE baru: `assistant.updated {conversationId, message}`, `assistant.delta {conversationId, messageId, text, steps}` (teks lengkap sejauh ini), `assistant.thread {conversationId}`, dan `library.updated` dengan `resource` `knowledge` / `assistant`.
+
+### 19.6 Pustaka
+
+- Semua petugas bisa mengunggah, melihat, mengubah, dan menghapus. Hapus = `deleted_at` (tempat sampah 30 hari, dibersihkan `housekeeping`); memulihkan juga boleh oleh semua petugas.
+- Jenis berkas: PDF berteks, DOCX, PPTX, TXT, MD, CSV, dan gambar JPG/PNG (dibaca lewat koneksi AI bila tersedia). Maks. 25 MB per berkas, kuota total 1 GB. Berkas yang sama (sha256) tidak disimpan dua kali.
+- Diproses di latar: ekstraksi teks → potongan per halaman/±1.500 karakter (`kb_chunks`) → ringkasan. Pencarian memakai FULLTEXT dengan cadangan `LIKE`.
+- Hanya dokumen `ready`, aktif, belum dihapus, dan belum lewat `valid_until` yang dipakai AOS.
+
+### 19.7 Web
+
+- `features/assistant/`: tombol pembuka (ikon Gajah Oling), panel kaca gaya "Tanya Fisko" (sempit 400 px / lebar 640 px, empat tombol kepala: bantuan, kecilkan, lebarkan/sempitkan, topik baru), linimasa, kartu tawaran dan rekomendasi, kotak tanya. Panel di-`key` per percakapan dan terbuka sendiri saat ada tawaran terbuka.
+- `/pustaka` (semua petugas) dan `/settings/assistant` (admin).
+- Preferensi per browser di `wa-inbox-prefs`: `aosWide`, `aosAutoOpen`.

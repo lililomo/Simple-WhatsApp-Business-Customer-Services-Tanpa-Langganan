@@ -33,6 +33,14 @@ import { TemplatePicker } from './TemplatePicker';
 export interface ComposerHandle {
   /** Tambahkan file (dari drag & drop di area chat) ke pratinjau lampiran. */
   addFiles: (files: File[]) => void;
+  /**
+   * Isi kotak balas dari luar (draf AOS): `replace` mengganti seluruh teks, `append` menambahkannya di bawah teks
+   * yang ada. Tidak mengirim apa pun. Saat jendela 24 jam tertutup kotak balas tidak ada, jadi teksnya disalin
+   * ke clipboard.
+   */
+  insertText: (text: string, mode: 'replace' | 'append') => void;
+  /** Kotak balas sedang berisi teks yang belum dikirim. */
+  hasText: () => boolean;
 }
 
 /**
@@ -208,7 +216,28 @@ export function Composer({
     }
     setPendingFiles((cur) => [...(cur ?? []), ...files]);
   };
-  useImperativeHandle(ref, () => ({ addFiles }));
+
+  const insertText = (value: string, mode: 'replace' | 'append') => {
+    if (!value.trim()) return;
+    if (!windowOpen) {
+      // Kotak balas tidak dirender (hanya template yang boleh dikirim); draf tetap bisa dipakai lewat clipboard.
+      void Promise.resolve()
+        .then(() => navigator.clipboard.writeText(value))
+        .then(
+          () => toast.info('Jendela 24 jam sudah tertutup, jadi draf tidak dimasukkan ke kotak balas. Draf sudah disalin ke clipboard.'),
+          () => toast.error('Jendela 24 jam sudah tertutup dan browser menolak akses clipboard. Salin draf secara manual.'),
+        );
+      return;
+    }
+    const existing = text.trimEnd();
+    const joined = mode === 'append' && existing ? `${existing}\n\n${value}` : value;
+    if (joined.length > TEXT_MAX) toast.warning(`Teks melebihi ${TEXT_MAX} karakter, jadi bagian akhirnya dipotong.`);
+    const next = joined.slice(0, TEXT_MAX);
+    // Sama seperti mengetik: state berubah (draf per percakapan ikut tersimpan), lalu kotak menyesuaikan tingginya.
+    setTextAndCaret(next, next.length);
+  };
+  const hasText = () => windowOpen && text.trim().length > 0;
+  useImperativeHandle(ref, () => ({ addFiles, insertText, hasText }));
 
   const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
     const files = [...e.clipboardData.files];

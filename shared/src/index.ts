@@ -13,3 +13,5 @@ export * from './push';
 export * from './sso';
 export * from './stats';
 export * from './usage';
+export * from './assistant';
+export * from './knowledge';

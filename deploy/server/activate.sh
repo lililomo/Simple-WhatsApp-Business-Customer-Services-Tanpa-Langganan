@@ -17,6 +17,9 @@ NODE_DIR="${NODE_DIR:-/www/server/nodejs/v24.14.0/bin}"
 RUN_USER="${RUN_USER:-www}"
 LOG="${DEPLOY_LOG:-/www/wwwlogs/${PROJECT_NAME}-deploy.log}"
 KEEP_RELEASES="${KEEP_RELEASES:-3}"
+# AOS menjalankan proses Claude Code di samping Node; batas memori proyek di aaPanel minimal sebesar ini (MB).
+MIN_MEMORY_MB="${MIN_MEMORY_MB:-2048}"
+VENDOR_DIR="$APP_DIR/vendor/claude-agent-sdk"
 APP_CMD='node --env-file=.env app/server/dist/index.js'
 PLACEHOLDER_CMD='node placeholder/server.js'
 PORT="$(sed -n 's/^PORT=\([0-9]*\).*/\1/p' "$APP_DIR/.env" | head -1)"
@@ -41,7 +44,7 @@ aapanel() {
   if [[ -n "${AAPANEL_STUB:-}" ]]; then bash "$AAPANEL_STUB" "$@"; return; fi
   case "$1" in
     restart) bash "$SCRIPT_DIR/bin/restart.sh" "$PROJECT_NAME" ;;
-    set-script) (cd /www/server/panel && btpython "$SCRIPT_DIR/aapanel_project.py" set-script "$PROJECT_NAME" "$2") ;;
+    set-script) (cd /www/server/panel && btpython "$SCRIPT_DIR/aapanel_project.py" set-script "$PROJECT_NAME" "$2" "$MIN_MEMORY_MB") ;;
   esac
 }
 
@@ -72,6 +75,42 @@ abort_build() {
   exit 1
 }
 
+sdk_version() {
+  sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$1/node_modules/@anthropic-ai/claude-agent-sdk/package.json" 2>/dev/null | head -1
+}
+
+# Biner Claude Code yang dibawa Claude Agent SDK berukuran ±400 MB. Agar tidak tersalin di setiap release, satu
+# salinan per versi SDK disimpan di <APP_DIR>/vendor dan dihapus dari node_modules release ini. Aplikasi mencarinya
+# di sana (server/src/modules/assistant/engine.ts).
+vendor_claude() {
+  local version src dest
+  version="$(sdk_version "$RELEASE_DIR")"
+  [[ -n "$version" ]] || return 0
+  src="$(find "$RELEASE_DIR/node_modules/@anthropic-ai" -maxdepth 2 -type f -name claude -path '*claude-agent-sdk-linux-*' 2>/dev/null | grep -v musl | head -1)"
+  [[ -n "$src" ]] || src="$(find "$RELEASE_DIR/node_modules/@anthropic-ai" -maxdepth 2 -type f -name claude -path '*claude-agent-sdk-linux-*' 2>/dev/null | head -1)"
+  dest="$VENDOR_DIR/$version"
+  if [[ -s "$dest/claude" ]]; then
+    [[ -n "$src" ]] && rm -f "$src"
+    return 0
+  fi
+  [[ -n "$src" ]] || { echo "biner Claude Code tidak ada di node_modules"; return 1; }
+  mkdir -p "$dest" && mv -f "$src" "$dest/claude" && chmod 755 "$dest/claude" && chown -R "$RUN_USER:$RUN_USER" "$APP_DIR/vendor"
+}
+
+# Versi biner yang tidak lagi dipakai release mana pun dihapus (release lama masih butuh versinya untuk rollback).
+prune_vendor() {
+  [[ -d "$VENDOR_DIR" ]] || return 0
+  local keep="" rel v
+  for rel in "$APP_DIR"/releases/*/; do
+    v="$(sdk_version "${rel%/}")"
+    [[ -n "$v" ]] && keep="$keep $v "
+  done
+  for v in "$VENDOR_DIR"/*/; do
+    v="$(basename "$v")"
+    [[ "$keep" == *" $v "* ]] || rm -rf "${VENDOR_DIR:?}/$v"
+  done
+}
+
 mkdir -p "$APP_HOME" && chown "$RUN_USER:$RUN_USER" "$APP_HOME"
 : >"$BUILD_LOG"
 chown -R "$RUN_USER:$RUN_USER" "$RELEASE_DIR" || abort_build "chown release"
@@ -81,6 +120,7 @@ log "Build $REL"
 (cd "$RELEASE_DIR" && as_app npm run build) >>"$BUILD_LOG" 2>&1 || abort_build "npm run build"
 # devDependencies hanya dibutuhkan saat build; buang agar tiap release tidak memakan ratusan MB.
 (cd "$RELEASE_DIR" && as_app npm prune --omit=dev --no-audit --no-fund) >>"$BUILD_LOG" 2>&1 || abort_build "npm prune"
+vendor_claude >>"$BUILD_LOG" 2>&1 || abort_build "simpan biner Claude Code"
 
 log "Migrasi database"
 (cd "$APP_DIR" && as_app node --env-file="$APP_DIR/.env" "$RELEASE_DIR/server/dist/cli.js" db:migrate) \
@@ -112,6 +152,7 @@ if wait_healthy "$SHA"; then
   ls -1 "$APP_DIR/releases" | sort -r | tail -n +$((KEEP_RELEASES + 1)) | while read -r old; do
     [[ "releases/$old" == "releases/$REL" ]] || rm -rf "$APP_DIR/releases/$old"
   done
+  prune_vendor
   exit 0
 fi
 

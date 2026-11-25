@@ -84,6 +84,7 @@ describe('useRealtime reconnect', () => {
     sources()[1]!.emit('hello');
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['conversations'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['messages'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['assistant-thread'] });
   });
 
   it('keeps trying, with growing delays, while the server is unavailable', async () => {

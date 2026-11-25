@@ -3,7 +3,7 @@ import { Bell, BellOff, Monitor, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert } from '@/components/ui/misc';
+import { Alert, Switch } from '@/components/ui/misc';
 import { errorMessage } from '@/lib/api';
 import { disablePush, enablePush, sendTestPush, usePushState } from '@/lib/push';
 import { FONT_SCALES, LIST_WIDTH, setPrefs, usePrefs, type ThemeMode } from '@/lib/theme';
@@ -140,6 +140,22 @@ export function AppearancePage() {
           <Button variant="outline" size="sm" disabled={prefs.listWidth === LIST_WIDTH.default} onClick={() => setPrefs({ listWidth: LIST_WIDTH.default })}>
             Kembalikan ke awal
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Asisten OSing (AOS)</CardTitle>
+          <CardDescription>
+            Bila dimatikan, panel AOS hanya terbuka saat Anda menekan tombol AOS di pojok kanan bawah ruang chat. Tanda tawaran tetap
+            muncul di tombol itu dan di daftar chat.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <Switch checked={prefs.aosAutoOpen} onCheckedChange={(aosAutoOpen) => setPrefs({ aosAutoOpen })} />
+            Buka panel AOS otomatis saat ada tawaran
+          </label>
         </CardContent>
       </Card>
 

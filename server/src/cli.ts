@@ -24,7 +24,8 @@ const commands: Record<string, Command> = {
     const r = await runHousekeeping(deps);
     console.log(
       `Housekeeping: ${r.sessions} sesi, ${r.webhookEvents} event webhook, ${r.deliveries} delivery, ` +
-        `${r.idempotencyKeys} idempotency key, ${r.mediaFiles} file media dihapus.`,
+        `${r.idempotencyKeys} idempotency key, ${r.mediaFiles} file media, ` +
+        `${r.knowledgeDocuments} dokumen Pustaka dihapus.`,
     );
     // Hari libur diperbarui sekalian setiap hari (bila API key api.co.id sudah diisi).
     const holidays = await syncHolidays(deps);

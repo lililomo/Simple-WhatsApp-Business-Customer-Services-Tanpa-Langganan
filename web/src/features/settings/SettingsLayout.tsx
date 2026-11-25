@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router';
-import { Clock, KeyRound, Palette, Phone, Tag, Zap } from 'lucide-react';
+import { Clock, KeyRound, Palette, Phone, Sparkles, Tag, Zap } from 'lucide-react';
 import { useMe } from '@/features/auth/hooks';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +10,7 @@ const items = [
   { to: '/settings/labels', label: 'Label', icon: Tag, admin: false },
   { to: '/settings/whatsapp', label: 'WhatsApp', icon: Phone, admin: true },
   { to: '/settings/business-hours', label: 'Jam kerja', icon: Clock, admin: true },
+  { to: '/settings/assistant', label: 'Asisten AI', icon: Sparkles, admin: true },
   { to: '/settings/api', label: 'API & Webhook', icon: KeyRound, admin: true },
 ];
 

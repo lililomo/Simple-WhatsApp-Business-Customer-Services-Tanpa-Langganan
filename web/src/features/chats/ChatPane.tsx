@@ -6,6 +6,7 @@ import { formatWaId, type MessageDTO } from '@wa/shared';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Alert, Skeleton } from '@/components/ui/misc';
+import { AosDock } from '@/features/assistant/AosDock';
 import { errorMessage } from '@/lib/api';
 import { Avatar, WindowBadge } from './bits';
 import { ContactPanel } from './ContactPanel';
@@ -113,9 +114,14 @@ export function ChatPane({ conversationId }: { conversationId: string }) {
             <ConversationMenuContent conv={conv} />
           </DropdownMenu>
         </header>
-        <MessageTimeline key={conversationId} conversationId={conversationId} onReply={setReplyTo} />
-        {/* key: kotak balas dan info kontak milik satu percakapan; tanpa key, isinya terbawa saat pindah chat.
-            Diberi awalan karena MessageTimeline di atasnya (saudara satu induk) sudah memakai id percakapan. */}
+        {/* Linimasa dan AOS berbagi satu area: tombol pembuka dan panel AOS melayang di atas linimasa, di bawah
+            kepala chat dan tepat di atas kotak balas berapa pun tinggi kotak itu. */}
+        <div className="aos-host relative flex min-h-0 flex-1 flex-col">
+          <MessageTimeline key={conversationId} conversationId={conversationId} onReply={setReplyTo} />
+          <AosDock key={`aos-${conv.id}`} conversation={conv} composerRef={composerRef} />
+        </div>
+        {/* key: kotak balas, info kontak, dan AOS milik satu percakapan; tanpa key, isinya terbawa saat pindah chat.
+            Diberi awalan karena MessageTimeline (saudara satu induk dengan AOS) sudah memakai id percakapan. */}
         <Composer key={`composer-${conv.id}`} ref={composerRef} conversation={conv} replyTo={replyTo} onClearReply={() => setReplyTo(null)} />
       </div>
       {showInfo && (

@@ -5,7 +5,18 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 ## Posisi sekarang
 
 - **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih menerima pesan di sisinya sendiri, tetapi portal kppbwi.app tidak lagi memakainya.
-- **Selesai (25 Nov 2026), belum di-deploy:** tab tersambung ulang sendiri setelah server restart (SPEC §8).
+- **Selesai (25 Nov 2026):** AOS (Asisten OSing) dan Pustaka (SPEC §19, migrasi `0006`), atas permintaan pemilik.
+  - **AOS**: panel kaca di kanan ruang chat (gaya "Tanya Fisko", sempit/lebar), satu sesi per percakapan yang dipakai bersama semua petugas. AOS hanya menyarankan; petugas menekan "Pakai", menyunting, dan mengirim sendiri.
+  - **Koneksi ke Claude** lewat Claude Agent SDK dengan dua jalur, langganan (`claude setup-token`) dan kunci API, yang urutannya diatur admin; pindah otomatis ke cadangan saat jalur utama kena batas, saldo habis, penuh, atau ditolak. Diatur di Pengaturan › Asisten AI (model, effort, mode, sumber, privasi, gaya, anggaran, pemakaian, coba AOS).
+  - **Deteksi awal** (bawaan Haiku 5.5) menilai pesan masuk: diam, tawarkan, atau jawab. Mode bawaan "Tawarkan dulu": panel terbuka sendiri dengan pilihan, rekomendasi baru dibuat setelah petugas memilih. Tersedia juga mode Otomatis dan Manual.
+  - **Jawaban**: draf format WhatsApp, catatan untuk petugas, tingkat keyakinan, dan sumber yang disaring server. Tindakan: Pakai, Salin, Perpendek, Lebih ramah, Buat ulang, simpan ke Pustaka/balasan cepat, 👍/👎, ringkas chat, jelaskan maksud pesan, topik baru.
+  - **Sumber**: Pustaka kantor (alat `cari_pustaka`/`baca_pustaka`) dan internet yang dibatasi ke daftar situs (bawaan: situs resmi pemerintah dan beberapa situs perpajakan).
+  - **Privasi**: NIK/NPWP, telepon, dan email disamarkan sebelum dikirim ke Claude; gambar kiriman WP ikut dibaca bila diizinkan.
+  - **Pustaka** (`/pustaka`, semua petugas): unggah PDF/DOCX/PPTX/TXT/MD/CSV/JPG/PNG atau tulis catatan; diproses di latar menjadi potongan teks berindeks FULLTEXT; tempat sampah 30 hari.
+  - **Deploy**: biner Claude Code (±400 MB) disimpan satu salinan di `<APP_DIR>/vendor/`; batas memori proyek dinaikkan ke 2048 MB.
+  - AOS dikirim dalam keadaan **mati**; baru aktif setelah admin menghubungkan minimal satu jalur dan menyalakannya.
+  - Belum diuji dengan kredensial Claude sungguhan (tidak tersedia saat pembangunan): alur diuji dengan mesin tiruan, dan penanganan kredensial yang ditolak diuji dengan SDK asli. Uji pertama di produksi lewat tombol "Uji koneksi".
+- **Selesai (25 Nov 2026):** tab tersambung ulang sendiri setelah server restart (SPEC §8).
   - Sebelumnya tab yang terbuka saat aplikasi di-restart atau saat halaman pemeliharaan terpasang berhenti menerima pesan real-time sampai dimuat ulang, karena `EventSource` menyerah begitu mendapat 502/503.
   - `useRealtime` kini membuat sambungan baru sendiri dengan jeda bertahap, mengambil ulang data yang terlewat, dan mengarahkan ke login bila sesi ternyata sudah berakhir.
   - Test `web/src/features/chats/useRealtime.test.tsx` (5 skenario); diuji juga di browser lokal dengan jalur `/api/events` dibuat menjawab 503 lalu dipulihkan.

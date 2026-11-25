@@ -11,6 +11,7 @@ import { Alert, Skeleton } from '@/components/ui/misc';
 import { errorMessage } from '@/lib/api';
 import { formatListTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { AosSpark } from '@/features/assistant/AosLogo';
 import { useLabels } from '@/features/library/queries';
 import { Avatar, WindowBadge } from './bits';
 import { ConversationMenuContent, LabelChips, LabelDot } from './labels';
@@ -69,6 +70,7 @@ function ConversationItem({ conv, active }: { conv: ConversationDTO; active: boo
             {conv.lastMessagePreview}
           </span>
           <span className="flex shrink-0 items-center gap-1">
+            {conv.aosOffer && <AosSpark className="size-4.5 shrink-0 text-[#c79a00] dark:text-gold" />}
             {conv.unreadCount > 0 && (
               <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-xs font-bold text-gold-foreground">
                 {conv.unreadCount}

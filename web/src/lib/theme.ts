@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * Preferensi tampilan per browser (tema, ukuran teks, lebar kolom daftar chat). Disimpan di localStorage,
+ * Preferensi tampilan per browser (tema, ukuran teks, lebar kolom daftar chat, panel AOS). Disimpan di localStorage,
  * bukan di server, sehingga setiap petugas/perangkat punya pengaturannya sendiri.
  */
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -12,6 +12,10 @@ export interface Prefs {
   fontScale: number;
   /** Lebar kolom daftar chat (px) di layar lebar. */
   listWidth: number;
+  /** Panel AOS memakai lebar 640 px (false = sempit, 400 px). */
+  aosWide: boolean;
+  /** Panel AOS terbuka sendiri saat ada tawaran untuk chat yang sedang dibuka. */
+  aosAutoOpen: boolean;
 }
 
 export const FONT_SCALES = [
@@ -25,7 +29,7 @@ export const LIST_WIDTH = { min: 260, max: 640, default: 384 };
 
 const KEY = 'wa-inbox-prefs';
 const LEGACY_THEME_KEY = 'wa-inbox-theme';
-const DEFAULTS: Prefs = { theme: 'system', fontScale: 100, listWidth: LIST_WIDTH.default };
+const DEFAULTS: Prefs = { theme: 'system', fontScale: 100, listWidth: LIST_WIDTH.default, aosWide: false, aosAutoOpen: true };
 const listeners = new Set<() => void>();
 
 function readStored(): Prefs {
@@ -37,6 +41,8 @@ function readStored(): Prefs {
       theme: ['light', 'dark', 'system'].includes(theme) ? theme : DEFAULTS.theme,
       fontScale: FONT_SCALES.some((f) => f.value === raw?.fontScale) ? raw!.fontScale! : DEFAULTS.fontScale,
       listWidth: clampListWidth(raw?.listWidth ?? DEFAULTS.listWidth),
+      aosWide: typeof raw?.aosWide === 'boolean' ? raw.aosWide : DEFAULTS.aosWide,
+      aosAutoOpen: typeof raw?.aosAutoOpen === 'boolean' ? raw.aosAutoOpen : DEFAULTS.aosAutoOpen,
     };
   } catch {
     return DEFAULTS;

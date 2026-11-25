@@ -27,6 +27,7 @@ const conversation = (id: string, name: string): ConversationDTO => ({
   cswExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
   unreadCount: 0,
   labels: [],
+  aosOffer: false,
 });
 
 const me: UserDTO = {

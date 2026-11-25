@@ -10,6 +10,7 @@ import type { Config } from './config';
 import type { Database } from './db/client';
 import type { EventBus } from './lib/bus';
 import type { Role } from '@wa/shared';
+import type { Engine } from './modules/assistant/engine';
 
 export interface AppDeps {
   config: Config;
@@ -19,6 +20,8 @@ export interface AppDeps {
   fetch?: typeof fetch;
   /** Logger aplikasi untuk pekerjaan di luar request (worker); diisi setelah app dibuat. */
   log?: Pick<FastifyBaseLogger, 'warn' | 'error'>;
+  /** Pemanggil Claude untuk AOS; diganti tiruan di test (bawaan: Claude Agent SDK). */
+  aosEngine?: Engine;
 }
 
 export type AppInstance = FastifyInstance<

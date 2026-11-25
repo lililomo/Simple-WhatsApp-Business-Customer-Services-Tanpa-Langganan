@@ -43,6 +43,13 @@
       "when": 1793600500889,
       "tag": "0005_labels",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1795608764480,
+      "tag": "0006_aos_knowledge",
+      "breakpoints": true
     }
   ]
 }

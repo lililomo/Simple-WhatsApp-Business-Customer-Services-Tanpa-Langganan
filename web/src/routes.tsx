@@ -5,8 +5,10 @@ import { LoginPage } from './features/auth/LoginPage';
 import { RequireAuth } from './features/auth/RequireAuth';
 import { ChatsPage } from './features/chats/ChatsPage';
 import { WhatsAppSettingsPage } from './features/connection/WhatsAppSettingsPage';
+import { KnowledgePage } from './features/knowledge/KnowledgePage';
 import { ApiSettingsPage } from './features/settings/ApiSettingsPage';
 import { AppearancePage } from './features/settings/AppearancePage';
+import { AssistantSettingsPage } from './features/settings/AssistantSettingsPage';
 import { BusinessHoursPage } from './features/settings/BusinessHoursPage';
 import { LabelsPage } from './features/settings/LabelsPage';
 import { QuickRepliesPage } from './features/settings/QuickRepliesPage';
@@ -25,6 +27,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/chats" replace /> },
       { path: 'chats', element: <ChatsPage /> },
       { path: 'chats/:conversationId', element: <ChatsPage /> },
+      { path: 'pustaka', element: <KnowledgePage /> },
       {
         path: 'settings',
         element: <SettingsLayout />,
@@ -46,6 +49,14 @@ export const router = createBrowserRouter([
             element: (
               <RequireAuth admin>
                 <WhatsAppSettingsPage />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: 'assistant',
+            element: (
+              <RequireAuth admin>
+                <AssistantSettingsPage />
               </RequireAuth>
             ),
           },

@@ -143,6 +143,8 @@ export const conversations = mysqlTable(
     lastInboundAt: ts('last_inbound_at'),
     cswExpiresAt: ts('csw_expires_at'),
     unreadCount: int('unread_count').notNull().default(0),
+    /** Tawaran AOS yang belum dijawab/ditutup (ai_messages.id); null bila tidak ada. */
+    aosOfferMessageId: ref('aos_offer_message_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -449,4 +451,124 @@ export const auditLogs = mysqlTable(
     createdAt: createdAt(),
   },
   (t) => [index('audit_logs_created_idx').on(t.createdAt)],
+);
+
+/* ---------- AOS (Asisten OSing) dan Pustaka, SPEC §19 ---------- */
+
+/** Satu sesi AOS per percakapan (per nomor WhatsApp), dipakai bersama semua petugas. */
+export const aiThreads = mysqlTable('ai_threads', {
+  id: id(),
+  conversationId: ref('conversation_id')
+    .notNull()
+    .unique()
+    .references(() => conversations.id, { onDelete: 'cascade' }),
+  /** "Topik baru": AOS hanya membaca pesan WhatsApp dan sesi setelah waktu ini. */
+  topicStartedAt: ts('topic_started_at'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const aiMessages = mysqlTable(
+  'ai_messages',
+  {
+    id: id(),
+    threadId: ref('thread_id')
+      .notNull()
+      .references(() => aiThreads.id, { onDelete: 'cascade' }),
+    kind: mysqlEnum('kind', ['offer', 'user', 'answer', 'error']).notNull(),
+    status: mysqlEnum('status', ['pending', 'running', 'done', 'error', 'cancelled']).notNull().default('done'),
+    /** Teks tawaran, teks petugas, atau jawaban mentah bertanda bagian. */
+    text: mediumtext('text'),
+    /** Pilihan tawaran, sumber, langkah kerja, hasil deteksi, instruksi yang dijalankan. */
+    data: jsonText<Record<string, unknown>>('data'),
+    offerState: mysqlEnum('offer_state', ['open', 'answered', 'dismissed']),
+    /** Pesan WhatsApp yang memicu tawaran/jawaban ini. */
+    triggerMessageId: ref('trigger_message_id'),
+    createdByUserId: ref('created_by_user_id'),
+    provider: varchar('provider', { length: 16 }),
+    model: varchar('model', { length: 64 }),
+    durationMs: int('duration_ms'),
+    error: text('error'),
+    /** 1 = bagus, -1 = kurang tepat. */
+    feedback: int('feedback'),
+    feedbackBy: ref('feedback_by'),
+    usedAt: ts('used_at'),
+    usedBy: ref('used_by'),
+    /** Dokumen Pustaka yang dibuat dari jawaban ini (Bank Jawaban). */
+    savedDocumentId: ref('saved_document_id'),
+    createdAt: createdAt(),
+    completedAt: ts('completed_at'),
+  },
+  (t) => [index('ai_messages_thread_idx').on(t.threadId, t.id)],
+);
+
+/** Setiap panggilan ke Claude (deteksi, jawaban, ringkasan, baca berkas): pemakaian, biaya, dan statistik topik. */
+export const aiCalls = mysqlTable(
+  'ai_calls',
+  {
+    id: id(),
+    purpose: varchar('purpose', { length: 24 }).notNull(),
+    conversationId: ref('conversation_id'),
+    userId: ref('user_id'),
+    provider: varchar('provider', { length: 16 }).notNull(),
+    model: varchar('model', { length: 64 }).notNull(),
+    ok: boolean('ok').notNull(),
+    error: varchar('error', { length: 500 }),
+    inputTokens: int('input_tokens').notNull().default(0),
+    outputTokens: int('output_tokens').notNull().default(0),
+    /** Biaya dalam sepersejuta USD menurut harga daftar (jalur langganan: setara, tidak ditagihkan). */
+    costMicroUsd: bigint('cost_micro_usd', { mode: 'number' }).notNull().default(0),
+    durationMs: int('duration_ms').notNull().default(0),
+    /** Hasil deteksi: kategori, topik, tindakan. */
+    meta: jsonText<Record<string, unknown>>('meta'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('ai_calls_created_idx').on(t.createdAt)],
+);
+
+/** Pustaka: berkas dan catatan rujukan bersama. Dihapus = masuk tempat sampah (deleted_at) selama 30 hari. */
+export const kbDocuments = mysqlTable(
+  'kb_documents',
+  {
+    id: id(),
+    kind: mysqlEnum('kind', ['file', 'note']).notNull().default('file'),
+    title: varchar('title', { length: 190 }).notNull(),
+    description: varchar('description', { length: 500 }),
+    tags: jsonText<string[]>('tags').notNull(),
+    fileName: varchar('file_name', { length: 255 }),
+    mimeType: varchar('mime_type', { length: 128 }),
+    fileSize: bigint('file_size', { mode: 'number', unsigned: true }),
+    sha256: char('sha256', { length: 64 }),
+    storagePath: varchar('storage_path', { length: 500 }),
+    status: mysqlEnum('status', ['processing', 'ready', 'failed']).notNull().default('processing'),
+    error: text('error'),
+    pageCount: int('page_count'),
+    charCount: int('char_count'),
+    summary: text('summary'),
+    isActive: boolean('is_active').notNull().default(true),
+    isOfficial: boolean('is_official').notNull().default(false),
+    validUntil: varchar('valid_until', { length: 10 }),
+    uploadedBy: ref('uploaded_by'),
+    deletedAt: ts('deleted_at'),
+    deletedBy: ref('deleted_by'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('kb_documents_sha_idx').on(t.sha256), index('kb_documents_deleted_idx').on(t.deletedAt)],
+);
+
+/** Potongan teks dokumen Pustaka; kolom text diberi indeks FULLTEXT lewat SQL migrasi. */
+export const kbChunks = mysqlTable(
+  'kb_chunks',
+  {
+    id: id(),
+    documentId: ref('document_id')
+      .notNull()
+      .references(() => kbDocuments.id, { onDelete: 'cascade' }),
+    seq: int('seq').notNull(),
+    page: int('page'),
+    heading: varchar('heading', { length: 255 }),
+    text: mediumtext('text').notNull(),
+  },
+  (t) => [index('kb_chunks_document_idx').on(t.documentId, t.seq)],
 );

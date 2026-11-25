@@ -5,6 +5,8 @@ import { EventBus } from './lib/bus';
 import { WebhookWorker } from './modules/processor/worker';
 import { WebhookDispatcher } from './modules/webhook-out/dispatcher';
 import { PushNotifier } from './modules/push/service';
+import { KnowledgeWorker } from './modules/knowledge/worker';
+import { AssistantWorker } from './modules/assistant/worker';
 import type { AppDeps } from './types';
 
 const config = loadConfig();
@@ -15,10 +17,12 @@ deps.log = app.log;
 const webhookWorker = new WebhookWorker(deps, app.log);
 const dispatcher = new WebhookDispatcher(deps, app.log);
 const pushNotifier = new PushNotifier(deps);
+const knowledgeWorker = new KnowledgeWorker(deps, app.log);
+const assistantWorker = new AssistantWorker(deps);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
-  await Promise.all([webhookWorker.stop(), dispatcher.stop()]);
+  await Promise.all([webhookWorker.stop(), dispatcher.stop(), knowledgeWorker.stop(), assistantWorker.stop()]);
   await app.close();
   await database.close();
   process.exit(0);
@@ -30,3 +34,7 @@ await app.listen({ port: config.PORT, host: '127.0.0.1' });
 webhookWorker.start();
 dispatcher.start();
 pushNotifier.start();
+// AOS: deteksi awal pesan masuk dan koneksi AI untuk Pustaka. Dipasang sebelum Pustaka mulai memproses.
+assistantWorker.start();
+// Dokumen Pustaka yang masih berstatus processing (mis. server berhenti di tengah jalan) langsung dilanjutkan.
+knowledgeWorker.start();
