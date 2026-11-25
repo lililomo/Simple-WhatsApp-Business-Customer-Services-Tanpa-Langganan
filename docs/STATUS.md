@@ -5,6 +5,11 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 ## Posisi sekarang
 
 - **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih menerima pesan di sisinya sendiri, tetapi portal kppbwi.app tidak lagi memakainya.
+- **Selesai (25 Nov 2026), belum di-deploy:** tab tersambung ulang sendiri setelah server restart (SPEC §8).
+  - Sebelumnya tab yang terbuka saat aplikasi di-restart atau saat halaman pemeliharaan terpasang berhenti menerima pesan real-time sampai dimuat ulang, karena `EventSource` menyerah begitu mendapat 502/503.
+  - `useRealtime` kini membuat sambungan baru sendiri dengan jeda bertahap, mengambil ulang data yang terlewat, dan mengarahkan ke login bila sesi ternyata sudah berakhir.
+  - Test `web/src/features/chats/useRealtime.test.tsx` (5 skenario); diuji juga di browser lokal dengan jalur `/api/events` dibuat menjawab 503 lalu dipulihkan.
+  - Tab yang sudah terbuka dengan versi lama tetap perlu dimuat ulang sekali setelah versi ini di-deploy.
 - **Selesai (25 Nov 2026):** mode pemeliharaan saat deploy (SPEC §12.3a), atas permintaan pemilik.
   - `scripts/deploy.sh` kini memasang halaman "Sedang pemeliharaan" setelah cek dan unggah, lalu mengaktifkan release; aktivasi yang berhasil menjalankan lagi aplikasi. `--no-maintenance` untuk melewatinya.
   - `bin/maintenance.sh on|off|status` di server; webhook Meta dijawab 503 selama pemeliharaan agar dikirim ulang (pesan tidak hilang).
