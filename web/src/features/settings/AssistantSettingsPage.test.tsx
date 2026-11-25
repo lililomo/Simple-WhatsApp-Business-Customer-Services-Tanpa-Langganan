@@ -9,7 +9,7 @@ import {
   type AssistantSettings,
   type AssistantSettingsDTO,
 } from '@wa/shared';
-import { checkSettings, cleanDomain, currentMonthWib, formatUsd, fullOrder } from './assistant/helpers';
+import { checkSettings, cleanDomain, currentMonthWib, fullOrder } from './assistant/helpers';
 import { AssistantSettingsPage } from './AssistantSettingsPage';
 
 const settings: AssistantSettings = assistantSettings.parse({
@@ -140,7 +140,9 @@ describe('AssistantSettingsPage', () => {
     expect(apiCard.queryByRole('button', { name: /Uji koneksi/ })).toBeNull();
 
     expect(screen.getByText('AOS aktif')).toBeTruthy();
-    expect(screen.getByText('$1.50')).toBeTruthy();
+    // Tidak ada nominal uang maupun pengaturan anggaran di halaman ini.
+    expect(screen.queryByText(/\$\d/)).toBeNull();
+    expect(screen.queryByText(/anggaran|biaya|saldo|mahal/i)).toBeNull();
     expect(saveButton()).toBeNull();
   });
 
@@ -332,12 +334,13 @@ describe('AssistantSettingsPage', () => {
 
     expect(await screen.findByText('1.234')).toBeTruthy();
     expect(api.calls().some(([url]) => url === `/api/assistant/usage?month=${currentMonthWib()}`)).toBe(true);
-    expect(screen.getByText('$3.46')).toBeTruthy();
-    expect(screen.getByText('1.000 panggilan · $0.00 · 2 gagal')).toBeTruthy();
+    expect(screen.queryByText('Biaya')).toBeNull();
+    expect(screen.queryByText(/\$\d/)).toBeNull();
+    expect(screen.getByText('1.000 panggilan · 2 gagal')).toBeTruthy();
     const purposes = within(screen.getByText('Per keperluan').parentElement!).getAllByRole('listitem');
     expect(purposes.map((li) => li.textContent)).toEqual([
-      'Deteksi awal900 panggilan · $0.40',
-      'Rekomendasi jawaban334 panggilan · $3.06',
+      'Deteksi awal900 panggilan',
+      'Rekomendasi jawaban334 panggilan',
     ]);
     const topics = within(
       screen.getByText('Topik yang paling sering ditanyakan').parentElement!,
@@ -398,12 +401,12 @@ describe('assistant settings helpers', () => {
     const bad = checkSettings({
       ...settings,
       privacy: { ...settings.privacy, contextMessages: 2 },
-      budget: { monthlyUsd: -1 },
+      triage: { ...settings.triage, debounceSec: 1 },
     });
     expect(bad.data).toBeNull();
     expect(bad.problems).toEqual([
+      'Jeda deteksi awal: isi bilangan bulat 2 sampai 60 detik.',
       'Jumlah pesan yang dibaca: isi bilangan bulat 5 sampai 100.',
-      'Anggaran bulanan: isi angka 0 sampai 100.000.',
     ]);
   });
 
@@ -415,11 +418,6 @@ describe('assistant settings helpers', () => {
     expect(cleanDomain('ortax.org')).toEqual({ ok: true, value: 'ortax.org' });
     expect(cleanDomain('pajak')).toMatchObject({ ok: false });
     expect(cleanDomain('-x.go.id')).toMatchObject({ ok: false });
-  });
-
-  it('formats cost in USD with two decimals', () => {
-    expect(formatUsd(0)).toBe('$0.00');
-    expect(formatUsd(1234.5)).toBe('$1,234.50');
   });
 
   it('takes the current month in WIB, not in UTC', () => {

@@ -78,7 +78,7 @@ export const assistantSettings = z.object({
     .prefault({}),
   budget: z
     .object({
-      /** Batas biaya jalur API per bulan dalam USD; 0 = tanpa batas. */
+      /** Tidak dipakai lagi (pengaturan anggaran dihapus 26 Nov 2026); dipertahankan agar pengaturan lama tetap terbaca. */
       monthlyUsd: z.number().min(0).max(100_000).default(0),
     })
     .prefault({}),

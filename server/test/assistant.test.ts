@@ -449,23 +449,6 @@ describe('two connections with priority order', () => {
     expect(calls).toHaveLength(1);
     expect((await thread(conv.id)).messages.at(-1)).toMatchObject({ status: 'error', error: 'Model yang dipilih tidak tersedia di jalur ini.' });
   });
-
-  it('stops using the API connection when the monthly budget is spent', async () => {
-    await setup();
-    await enable({ budget: { monthlyUsd: 0.03 } });
-    await receive(inbound.text('Tanya bea meterai'));
-    const conv = await conversation();
-    await askText(conv.id); // 0,02 USD
-    await askText(conv.id, 'Lagi'); // 0,04 USD
-    calls.length = 0;
-    await askText(conv.id, 'Sekali lagi');
-    expect(calls).toHaveLength(0);
-    const last = (await thread(conv.id)).messages.at(-1)!;
-    expect(last.status).toBe('error');
-    expect(last.error).toContain('Anggaran jalur API bulan ini sudah habis');
-    const dto = (await call('GET', '/api/assistant/settings', admin)).json() as AssistantSettingsDTO;
-    expect(dto.monthCostUsd).toBeCloseTo(0.04);
-  });
 });
 
 describe('first-pass detection', () => {

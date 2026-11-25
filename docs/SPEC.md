@@ -762,7 +762,7 @@ app_settings   + assistant (AssistantSettings), assistant_credentials ({subscrip
 - Biner Claude Code (±400 MB) disimpan satu salinan per versi di `<APP_DIR>/vendor/`, bukan di tiap release (lihat `activate.sh`). Versi yang tidak lagi dipakai release mana pun dihapus saat deploy.
 - Proses anak tidak mewarisi rahasia aplikasi (`DATABASE_URL`, `APP_KEY`, secret SSO) dan tidak punya alat shell atau berkas.
 - Tiap panggilan AOS menjalankan satu proses anak (ratusan MB). Batas memori Node project di aaPanel hanya diubah bila deploy dijalankan dengan `MIN_MEMORY_MB=<MB>` (dinaikkan sampai nilai itu, tidak pernah diturunkan); bawaannya tidak diubah.
-- Anggaran `budget.monthlyUsd` hanya berlaku untuk jalur API; bila habis, jalur API dilewati sampai bulan berikutnya (WIB).
+- Tidak ada batas anggaran: pengaturan anggaran dan semua tampilan biaya dihapus 26 Nov 2026 atas permintaan pemilik. Kolom `settings.budget` masih diterima agar pengaturan lama terbaca, tetapi diabaikan. `ai_calls.cost_micro_usd` tetap dicatat dan tidak ditampilkan.
 - Uji koneksi memakai model jawaban dengan effort rendah dan tidak berpindah jalur.
 
 ### 19.3 Deteksi awal dan mode

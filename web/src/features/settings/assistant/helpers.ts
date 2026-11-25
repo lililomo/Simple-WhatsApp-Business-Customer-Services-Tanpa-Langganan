@@ -56,7 +56,6 @@ const FIELD_PROBLEM: Record<string, string> = {
   'privacy.contextMessages': 'Jumlah pesan yang dibaca: isi bilangan bulat 5 sampai 100.',
   'style.officeProfile': 'Profil kantor maksimal 4.000 huruf.',
   'style.instructions': 'Instruksi tambahan maksimal 4.000 huruf.',
-  'budget.monthlyUsd': 'Anggaran bulanan: isi angka 0 sampai 100.000.',
 };
 
 /** Periksa formulir dengan skema bersama. `data` adalah bentuk yang dikirim ke server bila tidak ada masalah. */
@@ -90,18 +89,6 @@ export function cleanDomain(input: string): { ok: true; value: string } | { ok: 
   const parsed = assistantSettings.safeParse({ sources: { domains: [host] } });
   const value = parsed.success ? parsed.data.sources.domains[0] : undefined;
   return value ? { ok: true, value } : { ok: false, message: 'Tulis nama situs saja, mis. pajak.go.id' };
-}
-
-const usd = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-/** Biaya dalam USD dengan dua desimal: "$12.34". */
-export function formatUsd(amount: number): string {
-  return usd.format(amount);
 }
 
 export function formatCount(n: number): string {

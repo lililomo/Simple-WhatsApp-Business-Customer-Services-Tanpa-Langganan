@@ -10,6 +10,7 @@ import { AosDock } from '@/features/assistant/AosDock';
 import { errorMessage } from '@/lib/api';
 import { Avatar, WindowBadge } from './bits';
 import { ContactPanel } from './ContactPanel';
+import { MediaViewer } from './MediaViewer';
 import { ConversationMenuContent, LabelChips } from './labels';
 import { MessageTimeline } from './MessageTimeline';
 import { useConversation, useMarkRead } from './queries';
@@ -123,6 +124,7 @@ export function ChatPane({ conversationId }: { conversationId: string }) {
         {/* key: kotak balas, info kontak, dan AOS milik satu percakapan; tanpa key, isinya terbawa saat pindah chat.
             Diberi awalan karena MessageTimeline (saudara satu induk dengan AOS) sudah memakai id percakapan. */}
         <Composer key={`composer-${conv.id}`} ref={composerRef} conversation={conv} replyTo={replyTo} onClearReply={() => setReplyTo(null)} />
+        <MediaViewer conversationId={conv.id} contactName={conv.contact.name} />
       </div>
       {showInfo && (
         <div className="fixed inset-0 z-40 md:static md:z-auto">

@@ -35,8 +35,8 @@ function CredentialHelp({ provider }: { provider: AosProvider }) {
   if (provider === 'api') {
     return (
       <p className="text-sm">
-        Buat kunci di Claude Console (console.anthropic.com) › API Keys, pastikan ada saldo, lalu tempel di
-        sini (diawali <code className={code}>sk-ant-api</code>).
+        Buat kunci di Claude Console (console.anthropic.com) › API Keys, lalu tempel di sini (diawali{' '}
+        <code className={code}>sk-ant-api</code>).
       </p>
     );
   }
@@ -241,7 +241,7 @@ function ProviderCard({
         <p className="text-sm text-muted-foreground">
           {provider === 'subscription'
             ? 'Memakai kuota akun Claude berlangganan.'
-            : 'Memakai kunci API Claude; ditagih per pemakaian dari saldo di Claude Console.'}
+            : 'Memakai kunci API dari Claude Console.'}
         </p>
       )}
       {status.connected && status.lastError && (

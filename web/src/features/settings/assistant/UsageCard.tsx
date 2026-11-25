@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Alert, Skeleton } from '@/components/ui/misc';
 import { errorMessage } from '@/lib/api';
-import { currentMonthWib, formatCount, formatMonth, formatUsd, modelLabel } from './helpers';
+import { currentMonthWib, formatCount, formatMonth, modelLabel } from './helpers';
 import { useAssistantUsage } from './queries';
 
 /** Nama keperluan panggilan (ai_calls.purpose) untuk admin; nilai yang belum dikenal ditampilkan apa adanya. */
@@ -32,7 +32,6 @@ interface BarRow {
   key: string;
   label: string;
   calls: number;
-  costUsd: number;
   failed?: number;
 }
 
@@ -50,12 +49,12 @@ function BarList({ title, rows }: { title: string; rows: BarRow[] }) {
             <li
               key={row.key}
               className="flex flex-col gap-1"
-              title={`${row.label}: ${formatCount(row.calls)} panggilan, ${formatUsd(row.costUsd)}`}
+              title={`${row.label}: ${formatCount(row.calls)} panggilan`}
             >
               <div className="flex items-baseline justify-between gap-3 text-xs">
                 <span className="min-w-0 truncate">{row.label}</span>
                 <span className="shrink-0 text-muted-foreground tabular-nums">
-                  {formatCount(row.calls)} panggilan · {formatUsd(row.costUsd)}
+                  {formatCount(row.calls)} panggilan
                   {row.failed ? ` · ${formatCount(row.failed)} gagal` : ''}
                 </span>
               </div>
@@ -99,11 +98,10 @@ function UsageBody({ usage }: { usage: AosUsageDTO }) {
     answers.made > 0 ? `${Math.round((answers.used / answers.made) * 100)}% dari yang dibuat` : undefined;
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <Stat label="Panggilan ke Claude" value={formatCount(totals.calls)} />
         <Stat label="Token masuk" value={formatCount(totals.inputTokens)} />
         <Stat label="Token keluar" value={formatCount(totals.outputTokens)} />
-        <Stat label="Biaya" value={formatUsd(totals.costUsd)} />
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
@@ -113,7 +111,6 @@ function UsageBody({ usage }: { usage: AosUsageDTO }) {
             key: p.provider,
             label: AOS_PROVIDER_LABEL[p.provider] ?? p.provider,
             calls: p.calls,
-            costUsd: p.costUsd,
             failed: p.failed,
           }))}
         />
@@ -123,7 +120,6 @@ function UsageBody({ usage }: { usage: AosUsageDTO }) {
             key: m.model,
             label: modelLabel(m.model),
             calls: m.calls,
-            costUsd: m.costUsd,
           }))}
         />
         <BarList
@@ -132,7 +128,6 @@ function UsageBody({ usage }: { usage: AosUsageDTO }) {
             key: p.purpose,
             label: PURPOSE_LABEL[p.purpose] ?? p.purpose,
             calls: p.calls,
-            costUsd: p.costUsd,
           }))}
         />
       </div>
@@ -184,7 +179,7 @@ function UsageBody({ usage }: { usage: AosUsageDTO }) {
   );
 }
 
-/** Pemakaian AOS per bulan (WIB): panggilan, token, biaya, dan seberapa sering sarannya dipakai. */
+/** Pemakaian AOS per bulan (WIB): panggilan, token, dan seberapa sering sarannya dipakai. */
 export function UsageCard() {
   const thisMonth = currentMonthWib();
   const [month, setMonth] = useState(thisMonth);
@@ -199,7 +194,7 @@ export function UsageCard() {
         <div className="flex min-w-0 flex-1 basis-64 flex-col gap-1.5">
           <CardTitle>Pemakaian</CardTitle>
           <CardDescription>
-            Panggilan ke Claude, biaya, dan seberapa sering saran AOS dipakai selama {formatMonth(month)}.
+            Panggilan ke Claude dan seberapa sering saran AOS dipakai selama {formatMonth(month)}.
           </CardDescription>
         </div>
         <Input

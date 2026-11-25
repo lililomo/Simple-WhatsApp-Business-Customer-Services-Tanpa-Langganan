@@ -14,7 +14,6 @@ import { Field, NumberField, Select, SwitchRow } from './assistant/fields';
 import {
   checkSettings,
   EFFORT_LABEL,
-  formatUsd,
   fullOrder,
   isEqual,
   modelOptions,
@@ -40,7 +39,7 @@ const MODES: { value: AosMode; label: string; hint: string }[] = [
 ];
 
 /** Bagian pengaturan yang berupa objek, untuk diubah sebagian lewat `setSection`. */
-type SectionKey = 'answer' | 'triage' | 'sources' | 'privacy' | 'style' | 'budget';
+type SectionKey = 'answer' | 'triage' | 'sources' | 'privacy' | 'style';
 
 function SettingsForm({ data }: { data: AssistantSettingsDTO }) {
   const saved = useMemo(() => normalizeSettings(data.settings), [data.settings]);
@@ -79,9 +78,6 @@ function SettingsForm({ data }: { data: AssistantSettingsDTO }) {
     setDraft(null);
     save.reset();
   };
-
-  const budget = form.budget.monthlyUsd;
-  const budgetPercent = budget > 0 ? Math.min(100, Math.round((data.monthCostUsd / budget) * 100)) : 0;
 
   return (
     <>
@@ -122,7 +118,7 @@ function SettingsForm({ data }: { data: AssistantSettingsDTO }) {
           <CardTitle>Model jawaban</CardTitle>
           <CardDescription>
             Model yang menyusun rekomendasi jawaban. Model dan tingkat penalaran yang lebih tinggi lebih
-            teliti, tetapi lebih lambat dan lebih mahal.
+            teliti, tetapi lebih lambat.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -272,7 +268,7 @@ function SettingsForm({ data }: { data: AssistantSettingsDTO }) {
           <Field
             label="Jumlah pesan terakhir yang dibaca AOS"
             htmlFor="aos-context-messages"
-            hint="5 sampai 100 pesan. Makin banyak makin paham konteks, tetapi lebih lambat dan lebih mahal."
+            hint="5 sampai 100 pesan. Makin banyak makin paham konteks, tetapi lebih lambat."
           >
             <NumberField
               id="aos-context-messages"
@@ -326,49 +322,6 @@ function SettingsForm({ data }: { data: AssistantSettingsDTO }) {
               options={TONE_OPTIONS}
             />
           </Field>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Anggaran</CardTitle>
-          <CardDescription>
-            Batas biaya jalur API per bulan. Jalur langganan tidak ditagih per pemakaian, jadi tidak dihitung.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <Field label="Batas per bulan (USD)" htmlFor="aos-budget" hint="0 = tanpa batas.">
-            <NumberField
-              id="aos-budget"
-              min={0}
-              max={100_000}
-              step="any"
-              value={budget}
-              onChange={(monthlyUsd) => setSection('budget', { monthlyUsd })}
-            />
-          </Field>
-          <div className="flex flex-col gap-1.5">
-            <p className="text-sm">
-              Terpakai bulan ini:{' '}
-              <span className="font-semibold tabular-nums">{formatUsd(data.monthCostUsd)}</span>
-              {budget > 0 && <span className="text-muted-foreground"> dari {formatUsd(budget)}</span>}
-            </p>
-            {budget > 0 && (
-              <div
-                role="progressbar"
-                aria-label="Anggaran bulan ini terpakai"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={budgetPercent}
-                className="h-1.5 max-w-sm overflow-hidden rounded-full bg-secondary"
-              >
-                <div
-                  className={cn('h-full rounded-full', budgetPercent >= 90 ? 'bg-destructive' : 'bg-primary')}
-                  style={{ width: `${budgetPercent}%` }}
-                />
-              </div>
-            )}
-          </div>
         </CardContent>
       </Card>
 

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bot, Download, FileText, MapPin, RefreshCw, UserRound } from 'lucide-react';
+import { Bot, Download, FileText, MapPin, Play, RefreshCw, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MessageDTO } from '@wa/shared';
 import { libraryKeys } from '@/features/library/queries';
@@ -9,6 +9,7 @@ import { formatTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { FormattedText } from '@/lib/whatsapp-format';
 import { formatBytes, StatusTicks } from './bits';
+import { openMediaViewer } from './mediaViewerStore';
 
 type Payload = Record<string, unknown>;
 const field = <T,>(payload: Payload | null, ...path: string[]): T | undefined => {
@@ -39,15 +40,41 @@ function MediaContent({ message }: { message: MessageDTO }) {
   if (!m || m.status !== 'ready') return <MediaState message={message} />;
   switch (message.type) {
     case 'image':
+      // Dibuka di penampil (popup) di atas ruang chat, bukan di tab baru.
       return (
-        <a href={m.url} target="_blank" rel="noreferrer">
-          <img src={m.url} alt={message.text ?? 'Gambar'} loading="lazy" className="max-h-80 max-w-full rounded-md object-contain" />
-        </a>
+        <button
+          type="button"
+          className="block cursor-zoom-in overflow-hidden rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          onClick={() => openMediaViewer(message.conversationId, message.id)}
+          aria-label="Buka gambar"
+        >
+          <img
+            src={m.url}
+            alt={message.text ?? 'Gambar'}
+            loading="lazy"
+            className="max-h-80 max-w-full rounded-md object-contain transition-[filter] duration-150 hover:brightness-95"
+          />
+        </button>
       );
     case 'sticker':
       return <img src={m.url} alt="Stiker" loading="lazy" className="size-32 object-contain" />;
     case 'video':
-      return <video src={m.url} controls preload="metadata" className="max-h-80 max-w-full rounded-md" />;
+      // Cuplikan dengan tombol putar; videonya diputar di penampil (popup).
+      return (
+        <button
+          type="button"
+          className="group/video relative block overflow-hidden rounded-md bg-black focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          onClick={() => openMediaViewer(message.conversationId, message.id)}
+          aria-label="Putar video"
+        >
+          <video src={`${m.url}#t=0.1`} preload="metadata" muted playsInline tabIndex={-1} className="pointer-events-none max-h-80 max-w-full rounded-md" />
+          <span className="absolute inset-0 flex items-center justify-center bg-black/15 transition-colors group-hover/video:bg-black/30">
+            <span className="flex size-12 items-center justify-center rounded-full bg-black/55 text-white shadow-lg transition-transform duration-150 group-hover/video:scale-110">
+              <Play className="ml-0.5 size-6 fill-current" />
+            </span>
+          </span>
+        </button>
+      );
     case 'audio':
       return <audio src={m.url} controls preload="metadata" className="w-64 max-w-full" />;
     default:

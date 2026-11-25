@@ -873,3 +873,32 @@
     right: min(668px, calc(100% - 48px));
   }
 }
+
+/* ---------- Penampil media chat (popup gambar/video) ---------- */
+@keyframes media-viewer-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes media-viewer-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.media-viewer-overlay {
+  animation: media-viewer-fade 160ms ease-out;
+}
+.media-viewer {
+  animation: media-viewer-fade 160ms ease-out;
+}
+.media-viewer-item {
+  animation: media-viewer-pop 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .media-viewer-overlay,
+  .media-viewer,
+  .media-viewer-item {
+    animation: none;
+  }
+}

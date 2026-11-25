@@ -3,7 +3,7 @@ import { aiCalls } from '../../db/schema';
 import { AppError } from '../../lib/errors';
 import type { AppDeps } from '../../types';
 import { EngineError, runEngine, type EngineRequest, type EngineResult } from './engine';
-import { loadCredentials, loadProviderState, loadSettings, monthApiCostUsd, patchProviderState } from './settings';
+import { loadCredentials, loadProviderState, loadSettings, patchProviderState } from './settings';
 
 /** Untuk apa panggilan ini: masuk ke ai_calls.purpose dan laporan pemakaian. */
 export type CallPurpose = 'answer' | 'triage' | 'summary' | 'image' | 'test' | 'playground';
@@ -90,23 +90,11 @@ export async function callClaude(deps: AppDeps, ctx: CallContext, request: Engin
   }
 
   let candidates = connected;
-  let budgetHit = false;
   if (!ctx.only) {
-    if (settings.budget.monthlyUsd > 0 && candidates.includes('api') && (await monthApiCostUsd(deps)) >= settings.budget.monthlyUsd) {
-      candidates = candidates.filter((p) => p !== 'api');
-      budgetHit = true;
-    }
     const now = Date.now();
     const rested = candidates.filter((p) => !(state[p].state === 'cooldown' && state[p].cooldownUntil && new Date(state[p].cooldownUntil!).getTime() > now));
     // Bila semua jalur sedang diistirahatkan, tetap dicoba sesuai urutan: batasnya mungkin sudah pulih lebih cepat.
     if (rested.length > 0) candidates = rested;
-  }
-  if (candidates.length === 0) {
-    throw new AppError(
-      409,
-      budgetHit ? 'aos_budget' : 'aos_not_connected',
-      budgetHit ? 'Anggaran jalur API bulan ini sudah habis. Admin bisa menaikkannya di Pengaturan › Asisten AI.' : 'AOS belum terhubung ke Claude.',
-    );
   }
 
   const engine = deps.aosEngine ?? runEngine;

@@ -5,6 +5,9 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 ## Posisi sekarang
 
 - **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih menerima pesan di sisinya sendiri, tetapi portal kppbwi.app tidak lagi memakainya.
+- **Selesai (26 Nov 2026):** dua permintaan pemilik.
+  - **Penampil media chat**: gambar dan video di ruang chat dibuka sebagai popup di atas chat, bukan di tab baru (`features/chats/MediaViewer.tsx`). Tutup dengan klik di luar media, tombol ×, atau Esc; panah kiri/kanan berpindah ke gambar/video lain di percakapan itu; klik gambar untuk memperbesar; tombol unduh. Video tampil sebagai cuplikan dengan tombol putar. Dokumen tetap diunduh seperti sebelumnya.
+  - **Semua hal biaya dihapus dari Pengaturan › Asisten AI**: kartu Anggaran, angka Biaya dan nominal di grafik pemakaian, serta kalimat tentang saldo/tagihan. Batas anggaran di server ikut dinonaktifkan agar tidak ada batas tersembunyi (`settings.budget` tetap dibaca tetapi diabaikan).
 - **Selesai (26 Nov 2026):** menghubungkan langganan Claude tanpa terminal (SPEC §19.2), atas permintaan pemilik.
   - Dialog "Hubungkan Langganan Claude" kini bawaannya: Buat tautan login → masuk ke Claude di tab baru → tempel kode yang ditampilkan Claude. Menempel token dari `claude setup-token` tetap ada sebagai cara kedua.
   - Server menjalankan `claude setup-token` resmi di terminal semu dan menyimpan token hasilnya terenkripsi; token tidak pernah lewat browser.
