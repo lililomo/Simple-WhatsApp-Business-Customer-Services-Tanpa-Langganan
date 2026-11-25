@@ -273,6 +273,56 @@
     width: 22px;
     height: 22px;
   }
+  /* Versi bertulisan: pil navy berisi ikon dan "Asisten OSing"; kembali menjadi lingkaran emas saat panel terbuka. */
+  .aos-fab-label {
+    display: none;
+  }
+  .aos-launcher[data-labeled='true'][data-open='false'] {
+    width: auto;
+  }
+  .aos-launcher[data-labeled='true'][data-open='false'] .aos-fab {
+    position: relative;
+    inset: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 52px;
+    border-radius: 26px;
+    padding: 0 20px 0 11px;
+  }
+  .aos-launcher[data-labeled='true'][data-open='false'] .aos-fab-label {
+    display: inline;
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .aos-launcher[data-labeled='true'][data-open='false'] .aos-badge {
+    top: -3px;
+    right: 6px;
+  }
+  /* Di ponsel (sama dengan batas lembar penuh AOS) tetap lingkaran ikon saja, supaya tidak menutupi ruang chat. */
+  @media (width < 48rem) {
+    .aos-launcher[data-labeled='true'][data-open='false'] {
+      width: 52px;
+    }
+    .aos-launcher[data-labeled='true'][data-open='false'] .aos-fab {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      height: auto;
+      border-radius: 50%;
+      padding: 0;
+    }
+    .aos-launcher[data-labeled='true'][data-open='false'] .aos-fab-label {
+      display: none;
+    }
+    .aos-launcher[data-labeled='true'][data-open='false'] .aos-badge {
+      top: -2px;
+      right: 0;
+    }
+  }
   .aos-badge {
     position: absolute;
     top: -2px;
@@ -286,7 +336,7 @@
   }
   .aos-tip {
     position: absolute;
-    right: 62px;
+    right: calc(100% + 10px);
     bottom: 10px;
     border: 0;
     border-radius: 14px 14px 4px 14px;
