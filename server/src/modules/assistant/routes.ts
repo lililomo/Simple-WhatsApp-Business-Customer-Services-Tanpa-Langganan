@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   aosAskBody,
   aosFeedbackBody,
+  aosLoginCodeBody,
   aosPlaygroundBody,
   aosProvider,
   aosSaveBody,
@@ -12,6 +13,7 @@ import {
   parseAosAnswer,
   TEXT_MAX,
   type AosConnectionTestDTO,
+  type AosLoginStartDTO,
   type AosPlaygroundDTO,
   type AosThreadDTO,
 } from '@wa/shared';
@@ -23,6 +25,7 @@ import { requireAdminHook, requireUser, requireUserHook } from '../auth/plugin';
 import { createNote, knowledgeCatalog } from '../knowledge/service';
 import { closeOpenOffers, emitAiMessage, loadAiMessage, threadDTO, type AiMessageData } from './dto';
 import { EngineError } from './engine';
+import { cancelSubscriptionLogin, finishSubscriptionLogin, startSubscriptionLogin } from './login';
 import { DEFAULT_DRAFT_INSTRUCTION, answerSystemPrompt, answerUserPrompt } from './prompts';
 import { callClaude } from './providers';
 import { ask, cancelAnswer, resetThread, resolveSources } from './service';
@@ -76,6 +79,30 @@ export async function assistantRoutes(app: AppInstance) {
     await audit(db, { actorUserId: req.user.id, action: 'assistant.credential.set', targetType: 'assistant_provider', targetId: provider, ip: req.ip });
     changed();
     return settingsDTO(deps);
+  });
+
+  // Login langganan lewat tautan (tanpa terminal): server menjalankan `claude setup-token` resmi, admin membuka
+  // tautannya, masuk ke Claude, lalu menempel kode yang ditampilkan. Tokennya tidak pernah lewat browser.
+  app.post('/credentials/subscription/login', admin, async (): Promise<AosLoginStartDTO> => startSubscriptionLogin(deps));
+
+  app.post('/credentials/subscription/login/code', { ...admin, schema: { body: aosLoginCodeBody } }, async (req) => {
+    requireUser(req);
+    await finishSubscriptionLogin(deps, req.body.code, req.user.id);
+    await audit(db, {
+      actorUserId: req.user.id,
+      action: 'assistant.credential.set',
+      targetType: 'assistant_provider',
+      targetId: 'subscription',
+      meta: { via: 'login' },
+      ip: req.ip,
+    });
+    changed();
+    return settingsDTO(deps);
+  });
+
+  app.delete('/credentials/subscription/login', admin, async () => {
+    await cancelSubscriptionLogin(deps);
+    return { ok: true };
   });
 
   app.delete('/credentials/:provider', { ...admin, schema: { params: providerParams } }, async (req) => {

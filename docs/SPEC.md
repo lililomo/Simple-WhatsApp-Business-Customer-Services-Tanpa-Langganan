@@ -758,6 +758,7 @@ app_settings   + assistant (AssistantSettings), assistant_credentials ({subscrip
 - Alat bawaan dibatasi ke `WebSearch` dan `WebFetch`; keduanya melewati `canUseTool` yang memaksa daftar situs yang diizinkan (`settings.sources.domains`). Alat Pustaka (`cari_pustaka`, `baca_pustaka`) adalah server MCP dalam proses.
 - **Perpindahan otomatis:** galat batas pemakaian, saldo, kelebihan beban, atau kredensial ditolak pada jalur utama → permintaan diulang sekali di jalur berikutnya; jalur yang kena batas diistirahatkan sampai waktu reset (atau 15 menit). Galat lain tidak memicu perpindahan.
 - Token dan kunci disimpan terenkripsi (`APP_KEY`), tidak pernah dikirim balik ke browser (hanya 4 karakter terakhir).
+- **Login langganan lewat tautan** (`assistant/login.ts`): admin menekan "Buat tautan login", server menjalankan perintah resmi `claude setup-token` (biner yang sama dengan AOS) di terminal semu (`script` dari util-linux, 4000 kolom) dengan folder konfigurasi sekali pakai, membaca tautan login dari keluarannya, dan mengirim tautan itu ke browser. Admin masuk ke Claude di tab baru, menyalin kode yang ditampilkan, lalu menempelnya; server mengetikkan kode itu ke CLI, menangkap token `sk-ant-oat…` dari keluarannya, dan menyimpannya sebagai kredensial jalur langganan. Satu sesi login pada satu waktu, berlaku 10 menit, sekali pakai. Hanya tersedia di Linux; menempel token secara manual tetap ada sebagai cara kedua.
 - Biner Claude Code (±400 MB) disimpan satu salinan per versi di `<APP_DIR>/vendor/`, bukan di tiap release (lihat `activate.sh`). Versi yang tidak lagi dipakai release mana pun dihapus saat deploy.
 - Proses anak tidak mewarisi rahasia aplikasi (`DATABASE_URL`, `APP_KEY`, secret SSO) dan tidak punya alat shell atau berkas.
 - Tiap panggilan AOS menjalankan satu proses anak (ratusan MB). Batas memori Node project di aaPanel hanya diubah bila deploy dijalankan dengan `MIN_MEMORY_MB=<MB>` (dinaikkan sampai nilai itu, tidak pernah diturunkan); bawaannya tidak diubah.
@@ -802,6 +803,9 @@ PUT    /api/assistant/settings            (admin)   body AssistantSettings → A
 PUT    /api/assistant/credentials/:provider (admin)  body {secret} → AssistantSettingsDTO
 DELETE /api/assistant/credentials/:provider (admin)  → AssistantSettingsDTO
 POST   /api/assistant/credentials/:provider/test (admin) → AosConnectionTestDTO
+POST   /api/assistant/credentials/subscription/login (admin) → AosLoginStartDTO {url, expiresAt}
+POST   /api/assistant/credentials/subscription/login/code (admin) body {code} → AssistantSettingsDTO
+DELETE /api/assistant/credentials/subscription/login (admin) → {ok:true}   (batalkan sesi login)
 GET    /api/assistant/usage?month=YYYY-MM  (admin)   → AosUsageDTO
 POST   /api/assistant/playground           (admin)   body {text} → AosPlaygroundDTO
 

@@ -11,6 +11,7 @@ import type { Database } from './db/client';
 import type { EventBus } from './lib/bus';
 import type { Role } from '@wa/shared';
 import type { Engine } from './modules/assistant/engine';
+import type { LoginCommand } from './modules/assistant/login';
 
 export interface AppDeps {
   config: Config;
@@ -22,6 +23,8 @@ export interface AppDeps {
   log?: Pick<FastifyBaseLogger, 'warn' | 'error'>;
   /** Pemanggil Claude untuk AOS; diganti tiruan di test (bawaan: Claude Agent SDK). */
   aosEngine?: Engine;
+  /** Perintah login langganan Claude; diganti tiruan di test (bawaan: `claude setup-token` di terminal semu). */
+  aosLoginCommand?: (dir: string) => LoginCommand;
 }
 
 export type AppInstance = FastifyInstance<

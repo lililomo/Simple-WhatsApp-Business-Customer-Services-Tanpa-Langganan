@@ -1,6 +1,10 @@
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type {
+  AosLoginStartDTO,
   AosMessageDTO,
   AosThreadDTO,
   AosUsageDTO,
@@ -10,9 +14,11 @@ import type {
   ConversationDTO,
   RealtimeEvent,
 } from '@wa/shared';
-import { aiCalls, aiMessages, appSettings, labels, quickReplies } from '../src/db/schema';
+import { aiCalls, aiMessages, appSettings, auditLogs, labels, quickReplies } from '../src/db/schema';
 import { EngineError, type Engine, type EngineCredential, type EngineRequest, type EngineResult } from '../src/modules/assistant/engine';
+import { cancelSubscriptionLogin } from '../src/modules/assistant/login';
 import { resolveSources, runtimeFor } from '../src/modules/assistant/service';
+import { loadCredentials } from '../src/modules/assistant/settings';
 import { AssistantWorker } from '../src/modules/assistant/worker';
 import { createNote } from '../src/modules/knowledge/service';
 import { WebhookWorker } from '../src/modules/processor/worker';
@@ -50,6 +56,29 @@ const hang = (_credential: EngineCredential, request: EngineRequest) =>
     request.signal?.addEventListener('abort', () => reject(new EngineError('cancelled', 'Dibatalkan.')));
   });
 
+/** CLI Claude tiruan: menulis tautan login seperti aslinya (dengan kode kendali terminal), lalu menunggu kode. */
+const FAKE_CLI = `
+const out = (s) => process.stdout.write(s);
+out('\x1b[2J\x1b[2GWelcome\x1b[10Gto\x1b[13GClaude\x1b[20GCode\\r\\n');
+setTimeout(() => {
+  const url = 'https://claude.ai/oauth/authorize?TiruanUntukTes_0123456789-AbCdEfGhIj';
+  out('\x1b]8;id=1;' + url + '\x07\x1b[38;5;246m' + url + '\x1b[39m\x1b]8;;\x07\\r\\n\x1b[2GPaste\x1b[8Gcode\x1b[13Ghere\\r\\n');
+}, 60);
+let typed = '';
+process.stdin.on('data', (chunk) => {
+  typed += chunk.toString();
+  if (!/[\\r\\n]/.test(typed)) return;
+  const code = typed.trim();
+  typed = '';
+  if (code === 'kode-benar-0123456789#state-tes') {
+    out('\\r\\nYour\x1b[6GOAuth\x1b[12Gtoken\\r\\n\\r\\n' + process.env.FAKE_TOKEN + '\\r\\n');
+  } else {
+    out("\\r\\n\x1b[2GOAuth\x1b[8Gerror:\x1b[15GThat code wasn't accepted.\\r\\nPress Enter to retry\\r\\n");
+  }
+});
+setInterval(() => {}, 1000);
+`;
+
 const isTriage = (request: EngineRequest) => request.system.includes('penyaring awal');
 
 const ANSWER = `<draf>
@@ -66,6 +95,7 @@ P999 hlm 2
 afterEach(async () => {
   await worker?.stop();
   worker = undefined;
+  await cancelSubscriptionLogin(app.deps);
   await runtimeFor(app.deps).idle();
   await app?.close();
 });
@@ -702,5 +732,82 @@ describe('feedback, answer bank, new topic, usage', () => {
     await expect.poll(async () => (await thread(conv.id)).messages.at(-1)!.status).toBe('error');
     respond = () => ({ text: ANSWER });
     runtimeFor(app.deps).abortAll();
+  });
+});
+
+describe('connecting the subscription by link', () => {
+  const TOKEN = `sk-ant-oat01-${'t'.repeat(48)}-QwEr`;
+  let cliPath: string;
+
+  async function start() {
+    await setup();
+    cliPath = path.join(tmpdir(), `wa-inbox-fake-claude-${process.pid}.mjs`);
+    writeFileSync(cliPath, FAKE_CLI);
+    process.env.FAKE_TOKEN = TOKEN;
+    app.deps.aosLoginCommand = () => ({ command: process.execPath, args: [cliPath] });
+  }
+  const begin = () => call('POST', '/api/assistant/credentials/subscription/login', admin);
+  const sendCode = (code: string) => call('POST', '/api/assistant/credentials/subscription/login/code', admin, { code });
+
+  it('hands out the Claude sign-in link and stores the token once the code is pasted', async () => {
+    await start();
+    expect((await call('POST', '/api/assistant/credentials/subscription/login', agent)).statusCode).toBe(403);
+
+    const started = await begin();
+    expect(started.statusCode).toBe(200);
+    const { url, expiresAt } = started.json() as AosLoginStartDTO;
+    expect(url).toBe('https://claude.ai/oauth/authorize?TiruanUntukTes_0123456789-AbCdEfGhIj');
+    expect(new Date(expiresAt).getTime()).toBeGreaterThan(Date.now() + 5 * 60_000);
+
+    // Kode ditempel dengan spasi/baris baru yang ikut tersalin.
+    const done = await sendCode('  kode-benar-0123456789#state-tes\n');
+    expect(done.statusCode).toBe(200);
+    // Tokennya tidak pernah dikirim ke browser; hanya empat karakter terakhir.
+    expect(done.body).not.toContain(TOKEN);
+    const subscription = (done.json() as AssistantSettingsDTO).providers.find((p) => p.provider === 'subscription')!;
+    expect(subscription).toMatchObject({ connected: true, last4: 'QwEr', state: 'unknown' });
+    expect((await loadCredentials(app.deps)).subscription).toBe(TOKEN);
+
+    const audits = await t.get().db.select().from(auditLogs).where(eq(auditLogs.action, 'assistant.credential.set'));
+    expect(audits.map((a) => a.meta)).toEqual([{ via: 'login' }]);
+    expect(JSON.stringify(audits)).not.toContain(TOKEN);
+
+    // Sesi login sekali pakai.
+    expect((await sendCode('kode-benar-0123456789#state-tes')).statusCode).toBe(409);
+  });
+
+  it('explains a rejected code and asks for a fresh link', async () => {
+    await start();
+    await begin();
+    const rejected = await sendCode('kode-salah-0123456789');
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.json().error.message).toContain('Kode tidak diterima Claude');
+    expect((await loadCredentials(app.deps)).subscription).toBeUndefined();
+    expect((await sendCode('kode-benar-0123456789#state-tes')).statusCode).toBe(409);
+
+    // Tautan baru bisa dibuat lagi dan berhasil.
+    await begin();
+    expect((await sendCode('kode-benar-0123456789#state-tes')).statusCode).toBe(200);
+  });
+
+  it('refuses codes with control characters, supports cancelling, and needs a session', async () => {
+    await start();
+    expect((await sendCode('kode-benar-0123456789#state-tes')).statusCode).toBe(409);
+    await begin();
+    const odd = await sendCode('kode\u001b[2Jjahat-0123456789');
+    expect(odd.statusCode).toBe(400);
+    expect(odd.json().error.message).toContain('Kode tidak dikenali');
+    // Kode yang ditolak di sisi aplikasi tidak menghabiskan sesi.
+    const cancelled = await call('DELETE', '/api/assistant/credentials/subscription/login', admin);
+    expect(cancelled.statusCode).toBe(200);
+    expect((await sendCode('kode-benar-0123456789#state-tes')).statusCode).toBe(409);
+  });
+
+  it('reports when the server cannot prepare a link', async () => {
+    await start();
+    app.deps.aosLoginCommand = () => ({ command: process.execPath, args: ['-e', 'process.exit(3)'] });
+    const failed = await begin();
+    expect(failed.statusCode).toBe(502);
+    expect(failed.json().error.message).toContain('Tidak bisa menyiapkan tautan login Claude');
   });
 });

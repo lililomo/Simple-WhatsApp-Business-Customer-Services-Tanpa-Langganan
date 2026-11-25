@@ -5,6 +5,10 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
 ## Posisi sekarang
 
 - **Fase:** fase 1 selesai dan **live** sejak 1 Nov 2026 (laporan di [GO-LIVE.md](GO-LIVE.md)). Kirimdev masih menerima pesan di sisinya sendiri, tetapi portal kppbwi.app tidak lagi memakainya.
+- **Selesai (26 Nov 2026):** menghubungkan langganan Claude tanpa terminal (SPEC §19.2), atas permintaan pemilik.
+  - Dialog "Hubungkan Langganan Claude" kini bawaannya: Buat tautan login → masuk ke Claude di tab baru → tempel kode yang ditampilkan Claude. Menempel token dari `claude setup-token` tetap ada sebagai cara kedua.
+  - Server menjalankan `claude setup-token` resmi di terminal semu dan menyimpan token hasilnya terenkripsi; token tidak pernah lewat browser.
+  - Diuji dengan CLI tiruan (4 tes server, 2 tes web). Di server produksi, dengan CLI asli sudah dicoba sampai tautan muncul dan kode palsu ditolak dengan benar; login sungguhan sampai token belum dicoba (butuh akun pemilik).
 - **Selesai (25 Nov 2026):** AOS (Asisten OSing) dan Pustaka (SPEC §19, migrasi `0006`), atas permintaan pemilik.
   - **AOS**: panel kaca di kanan ruang chat (gaya "Tanya Fisko", sempit/lebar), satu sesi per percakapan yang dipakai bersama semua petugas. AOS hanya menyarankan; petugas menekan "Pakai", menyunting, dan mengirim sendiri.
   - **Koneksi ke Claude** lewat Claude Agent SDK dengan dua jalur, langganan (`claude setup-token`) dan kunci API, yang urutannya diatur admin; pindah otomatis ke cadangan saat jalur utama kena batas, saldo habis, penuh, atau ditolak. Diatur di Pengaturan › Asisten AI (model, effort, mode, sumber, privasi, gaya, anggaran, pemakaian, coba AOS).

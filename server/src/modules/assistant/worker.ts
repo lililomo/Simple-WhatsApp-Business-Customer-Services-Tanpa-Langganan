@@ -3,6 +3,7 @@ import { aiMessages, aiThreads } from '../../db/schema';
 import type { AppDeps } from '../../types';
 import { setKnowledgeAi } from '../knowledge/service';
 import { closeOpenOffers } from './dto';
+import { cancelSubscriptionLogin } from './login';
 import { IMAGE_SYSTEM, SUMMARY_SYSTEM } from './prompts';
 import { callClaude } from './providers';
 import { runTriage, runtimeFor } from './service';
@@ -62,6 +63,7 @@ export class AssistantWorker {
     this.unsubscribe?.();
     if (this.sweeper) clearInterval(this.sweeper);
     setKnowledgeAi(null);
+    await cancelSubscriptionLogin(this.deps);
     const runtime = runtimeFor(this.deps);
     runtime.abortAll();
     await runtime.idle();

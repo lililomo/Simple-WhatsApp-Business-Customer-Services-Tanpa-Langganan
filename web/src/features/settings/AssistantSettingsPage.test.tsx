@@ -228,6 +228,70 @@ describe('AssistantSettingsPage', () => {
     expect(saveButton()).toBeNull();
   });
 
+  it('connects the subscription by link: sign in on Claude, then paste the code', async () => {
+    const disconnected = dto({
+      ready: false,
+      providers: dto().providers.map((p) =>
+        p.provider === 'subscription' ? { ...p, connected: false, last4: null, state: 'unknown' as const, lastUsedAt: null } : p,
+      ),
+    });
+    const connected = dto({
+      providers: dto().providers.map((p) => (p.provider === 'subscription' ? { ...p, last4: 'QwEr' } : p)),
+    });
+    const api = mockFetch(disconnected, (url) => {
+      if (url.endsWith('/subscription/login')) return { url: 'https://claude.ai/oauth/authorize?abc123', expiresAt: '2026-11-26T01:00:00.000Z' };
+      if (url.endsWith('/subscription/login/code')) return connected;
+      return {};
+    });
+    renderPage();
+    const card = within(await screen.findByRole('region', { name: 'Langganan Claude' }));
+    fireEvent.click(card.getByRole('button', { name: /Hubungkan/ }));
+    const dialog = within(await screen.findByRole('dialog'));
+
+    // Bawaannya tanpa terminal: tidak ada perintah yang harus dijalankan.
+    expect(dialog.queryByText(/claude setup-token/)).toBeNull();
+    expect(dialog.getByText(/Help improve Claude/)).toBeTruthy();
+    fireEvent.click(dialog.getByRole('button', { name: 'Buat tautan login' }));
+
+    const link = (await dialog.findByRole('link', { name: /Buka halaman login Claude/ })) as HTMLAnchorElement;
+    expect(link.href).toBe('https://claude.ai/oauth/authorize?abc123');
+    expect(link.target).toBe('_blank');
+    expect(link.rel).toBe('noreferrer');
+
+    fireEvent.change(dialog.getByLabelText('Tempel kodenya di sini'), { target: { value: '  kode-dari-claude-123#state\n' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Hubungkan' }));
+    await waitFor(() => expect(api.sent('POST').some(([url]) => url.endsWith('/login/code'))).toBe(true));
+    const [, init] = api.sent('POST').find(([url]) => url.endsWith('/login/code'))!;
+    expect(JSON.parse(init!.body as string)).toEqual({ code: 'kode-dari-claude-123#state' });
+
+    // Kartu memakai jawaban server; dialog tertutup dan sesi login yang sudah selesai tidak dibatalkan lagi.
+    expect(await card.findByText('•••• QwEr')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(api.sent('DELETE')).toHaveLength(0);
+  });
+
+  it('keeps pasting a token as a second way, and cancels an unfinished sign-in when the page goes away', async () => {
+    const api = mockFetch(dto(), (url) =>
+      url.endsWith('/subscription/login') ? { url: 'https://claude.ai/oauth/authorize?xyz', expiresAt: '2026-11-26T01:00:00.000Z' } : { ok: true },
+    );
+    const view = renderPage();
+    const card = within(await screen.findByRole('region', { name: 'Langganan Claude' }));
+    fireEvent.click(card.getByRole('button', { name: /Ganti/ }));
+    const dialog = within(await screen.findByRole('dialog'));
+
+    fireEvent.click(dialog.getByRole('button', { name: /Sudah punya token/ }));
+    expect(dialog.getByText(/claude setup-token/)).toBeTruthy();
+    expect((dialog.getByLabelText('Token langganan') as HTMLInputElement).type).toBe('password');
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Masuk lewat tautan saja' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Buat tautan login' }));
+    await dialog.findByRole('link', { name: /Buka halaman login Claude/ });
+    expect(api.sent('DELETE')).toHaveLength(0);
+
+    view.unmount();
+    expect(api.sent('DELETE').map(([url]) => url)).toEqual(['/api/assistant/credentials/subscription/login']);
+  });
+
   it('sends a new credential to its own connection and never to the wrong one', async () => {
     const connected = dto({
       providers: dto().providers.map((p) =>

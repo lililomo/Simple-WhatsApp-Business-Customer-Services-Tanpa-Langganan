@@ -21,6 +21,7 @@ import { errorMessage } from '@/lib/api';
 import { formatDateTime, formatTime } from '@/lib/format';
 import { formatDuration, modelLabel, PROVIDER_NAME } from './helpers';
 import { useRemoveCredential, useSetCredential, useTestCredential } from './queries';
+import { SubscriptionLogin } from './SubscriptionLogin';
 
 const SECRET_NAME: Record<AosProvider, string> = { subscription: 'Token langganan', api: 'Kunci API' };
 /** Nama yang sama untuk dipakai di tengah kalimat. */
@@ -40,26 +41,30 @@ function CredentialHelp({ provider }: { provider: AosProvider }) {
     );
   }
   return (
-    <div className="flex flex-col gap-3 text-sm">
-      <ol className="flex list-decimal flex-col gap-1.5 pl-5">
-        <li>
-          Di komputer Anda, buka terminal dan jalankan <code className={code}>claude setup-token</code>.
-        </li>
-        <li>Masuk dengan akun Claude berlangganan di browser yang terbuka.</li>
-        <li>
-          Salin token yang ditampilkan (diawali <code className={code}>sk-ant-oat</code>) dan tempel di sini.
-        </li>
-      </ol>
-      <Alert variant="warning" className="flex flex-col gap-1.5">
-        <p>
-          Matikan <em>Help improve Claude</em> di setelan privasi akun itu sebelum menghubungkan.
-        </p>
-        <p>
-          Langganan Claude ditujukan untuk pemakaian perorangan; untuk layanan bersama, jalur API adalah jalur
-          resminya.
-        </p>
-      </Alert>
-    </div>
+    <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm">
+      <li>
+        Di komputer Anda, buka terminal dan jalankan <code className={code}>claude setup-token</code>.
+      </li>
+      <li>Masuk dengan akun Claude berlangganan di browser yang terbuka.</li>
+      <li>
+        Salin token yang ditampilkan (diawali <code className={code}>sk-ant-oat</code>) dan tempel di sini.
+      </li>
+    </ol>
+  );
+}
+
+/** Hal yang perlu diketahui sebelum memakai akun langganan, apa pun cara menghubungkannya. */
+function SubscriptionNotice() {
+  return (
+    <Alert variant="warning" className="flex flex-col gap-1.5 text-sm">
+      <p>
+        Matikan <em>Help improve Claude</em> di setelan privasi akun itu sebelum menghubungkan.
+      </p>
+      <p>
+        Langganan Claude ditujukan untuk pemakaian perorangan; untuk layanan bersama, jalur API adalah jalur
+        resminya.
+      </p>
+    </Alert>
   );
 }
 
@@ -75,6 +80,8 @@ function CredentialDialog({
 }) {
   const [secret, setSecret] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
+  // Jalur langganan: bawaannya masuk lewat tautan; menempel token sendiri tetap tersedia.
+  const [manual, setManual] = useState(provider !== 'subscription');
   const save = useSetCredential();
   const other: AosProvider = provider === 'api' ? 'subscription' : 'api';
   const typed = secret.trim();
@@ -120,36 +127,45 @@ function CredentialDialog({
             empat karakter terakhirnya yang terlihat.
           </DialogDescription>
         </DialogHeader>
-        <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
-          <CredentialHelp provider={provider} />
-          {problem && <Alert variant="destructive">{problem}</Alert>}
-          {save.isError && <Alert variant="destructive">{errorMessage(save.error)}</Alert>}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="aos-secret">{SECRET_NAME[provider]}</Label>
-            <Input
-              id="aos-secret"
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              autoFocus
-              className="font-mono"
-              placeholder={`${SECRET_PREFIX[provider]}…`}
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-            />
-            {oddPrefix && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                {SECRET_NAME[provider]} biasanya diawali {SECRET_PREFIX[provider]}. Periksa lagi sebelum
-                menyimpan.
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={save.isPending || !typed}>
-              {save.isPending ? 'Menyimpan…' : replacing ? 'Ganti' : 'Hubungkan'}
-            </Button>
-          </DialogFooter>
-        </form>
+        {provider === 'subscription' && <SubscriptionNotice />}
+        {!manual && <SubscriptionLogin onDone={onClose} onManual={() => setManual(true)} />}
+        {manual && (
+          <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+            <CredentialHelp provider={provider} />
+            {problem && <Alert variant="destructive">{problem}</Alert>}
+            {save.isError && <Alert variant="destructive">{errorMessage(save.error)}</Alert>}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="aos-secret">{SECRET_NAME[provider]}</Label>
+              <Input
+                id="aos-secret"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                autoFocus
+                className="font-mono"
+                placeholder={`${SECRET_PREFIX[provider]}…`}
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+              />
+              {oddPrefix && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  {SECRET_NAME[provider]} biasanya diawali {SECRET_PREFIX[provider]}. Periksa lagi sebelum
+                  menyimpan.
+                </p>
+              )}
+            </div>
+            <DialogFooter className={provider === 'subscription' ? 'sm:justify-between' : undefined}>
+              {provider === 'subscription' && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setManual(false)}>
+                  Masuk lewat tautan saja
+                </Button>
+              )}
+              <Button type="submit" disabled={save.isPending || !typed}>
+                {save.isPending ? 'Menyimpan…' : replacing ? 'Ganti' : 'Hubungkan'}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

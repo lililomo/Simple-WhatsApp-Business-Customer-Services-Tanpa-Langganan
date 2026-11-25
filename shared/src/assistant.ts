@@ -116,6 +116,14 @@ export interface AssistantStatusDTO {
 export const credentialBody = z.object({ secret: z.string().trim().min(20).max(600) });
 export const orderBody = z.object({ order: z.array(aosProvider).min(1).max(2) });
 
+/** Login langganan lewat tautan: server menyiapkan tautan login Claude, admin menempel kode yang ditampilkan Claude. */
+export interface AosLoginStartDTO {
+  url: string;
+  /** Tautan dan sesi login berlaku sampai waktu ini. */
+  expiresAt: string;
+}
+export const aosLoginCodeBody = z.object({ code: z.string().trim().min(8, 'Kode belum lengkap').max(2000) });
+
 export interface AosConnectionTestDTO {
   ok: boolean;
   provider: AosProvider;

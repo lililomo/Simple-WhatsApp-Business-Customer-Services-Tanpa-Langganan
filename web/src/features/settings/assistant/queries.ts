@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AosConnectionTestDTO,
+  AosLoginStartDTO,
   AosPlaygroundDTO,
   AosProvider,
   AosUsageDTO,
@@ -44,6 +45,28 @@ export function useSetCredential() {
       }),
     onSuccess: (dto) => qc.setQueryData(assistantKeys.settings, dto),
   });
+}
+
+/** Minta server menyiapkan tautan login Claude untuk jalur langganan (beberapa detik). */
+export function useStartSubscriptionLogin() {
+  return useMutation({
+    mutationFn: () => api<AosLoginStartDTO>('/api/assistant/credentials/subscription/login', { method: 'POST' }),
+  });
+}
+
+/** Kirim kode dari halaman login Claude; server menukarnya menjadi token dan menyimpannya. */
+export function useFinishSubscriptionLogin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (code: string) =>
+      api<AssistantSettingsDTO>('/api/assistant/credentials/subscription/login/code', { method: 'POST', body: { code } }),
+    onSuccess: (dto) => qc.setQueryData(assistantKeys.settings, dto),
+  });
+}
+
+/** Hentikan sesi login yang belum selesai (dialog ditutup). Gagal pun tidak apa: sesi berakhir sendiri. */
+export function cancelSubscriptionLogin(): void {
+  void api('/api/assistant/credentials/subscription/login', { method: 'DELETE' }).catch(() => undefined);
 }
 
 export function useRemoveCredential() {

@@ -159,9 +159,15 @@ export function claudeExecutable(deps: AppDeps): string | undefined {
   return existsSync(candidate) ? candidate : undefined;
 }
 
-function childEnv(deps: AppDeps, credential: EngineCredential): Record<string, string | undefined> {
+/** Salinan environment proses ini tanpa rahasia aplikasi, untuk proses anak Claude Code. */
+export function cleanProcessEnv(): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(process.env)) if (!ENV_BLOCKED.has(key)) env[key] = value;
+  return env;
+}
+
+function childEnv(deps: AppDeps, credential: EngineCredential): Record<string, string | undefined> {
+  const env = cleanProcessEnv();
   // Folder konfigurasi sendiri: terpisah dari sesi Claude Code lain di mesin ini.
   const configDir = path.resolve(deps.config.STORAGE_DIR, 'claude');
   mkdirSync(configDir, { recursive: true });
