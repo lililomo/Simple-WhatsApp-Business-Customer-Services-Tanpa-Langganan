@@ -61,7 +61,7 @@ export function SubscriptionLogin({ onDone, onManual }: { onDone: () => void; on
       onError: (err) => {
         // Kode yang ditolak Claude atau sesi yang berakhir menghabiskan tautannya: kembali ke langkah awal.
         // Kode yang ditolak aplikasi sendiri (salah bentuk) atau yang masih diproses tidak menghabiskan sesi.
-        const sessionKept = err instanceof ApiError && (err.code === 'aos_login_busy' || (err.code === 'aos_login_code' && /tidak dikenali/.test(err.message)));
+        const sessionKept = err instanceof ApiError && (err.code === 'aos_login_busy' || err.code === 'aos_login_code_format');
         if (err instanceof ApiError && !sessionKept) {
           active.current = false;
           setProblem(err.message);

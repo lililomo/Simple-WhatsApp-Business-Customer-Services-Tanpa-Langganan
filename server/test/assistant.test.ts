@@ -56,7 +56,11 @@ const hang = (_credential: EngineCredential, request: EngineRequest) =>
     request.signal?.addEventListener('abort', () => reject(new EngineError('cancelled', 'Dibatalkan.')));
   });
 
-/** CLI Claude tiruan: menulis tautan login seperti aslinya (dengan kode kendali terminal), lalu menunggu kode. */
+/**
+ * CLI Claude tiruan. Meniru aslinya dalam tiga hal yang penting: menulis tautan login dengan kode kendali terminal;
+ * menganggap potongan masukan yang panjang sebagai tempelan, sehingga Enter di dalamnya TIDAK dihitung sebagai
+ * penekanan tombol (kode hanya mengisi kotak); dan baru memproses kode saat Enter datang sebagai masukan tersendiri.
+ */
 const FAKE_CLI = `
 const out = (s) => process.stdout.write(s);
 out('\x1b[2J\x1b[2GWelcome\x1b[10Gto\x1b[13GClaude\x1b[20GCode\\r\\n');
@@ -64,17 +68,25 @@ setTimeout(() => {
   const url = 'https://claude.ai/oauth/authorize?TiruanUntukTes_0123456789-AbCdEfGhIj';
   out('\x1b]8;id=1;' + url + '\x07\x1b[38;5;246m' + url + '\x1b[39m\x1b]8;;\x07\\r\\n\x1b[2GPaste\x1b[8Gcode\x1b[13Ghere\\r\\n');
 }, 60);
-let typed = '';
+let field = '';
+const submit = () => {
+  const code = field;
+  field = '';
+  if (!code) return;
+  const [a, b] = code.split('#');
+  if (!a || !b) return out("\\r\\n\x1b[2G\\u2718\x1b[4GThat doesn't look like the full code.\\r\\nCopy all of it, including the # in the middle.\\r\\n");
+  out('\\r\\n\x1b[2G\\u273d\x1b[4GFinishing\x1b[14Gsign-i\x1b[22G\\u2026\\r\\n');
+  setTimeout(() => {
+    if (code === 'kode-benar-0123456789#state-tes') out('\\r\\nYour\x1b[6GOAuth\x1b[12Gtoken\\r\\n\\r\\n' + process.env.FAKE_TOKEN + '\\r\\n');
+    else if (code.startsWith('akun-ditolak')) out("\\r\\n\x1b[2G\\u2718\x1b[4GThis account can't be used here.\\r\\n");
+    else out("\\r\\n\x1b[2G\\u2718\x1b[4GOAuth\x1b[10Gerror:\x1b[17GThat code wasn't accepted. Sign in again to get a new code.\\r\\nPress Enter to retry\\r\\n");
+  }, 80);
+};
 process.stdin.on('data', (chunk) => {
-  typed += chunk.toString();
-  if (!/[\\r\\n]/.test(typed)) return;
-  const code = typed.trim();
-  typed = '';
-  if (code === 'kode-benar-0123456789#state-tes') {
-    out('\\r\\nYour\x1b[6GOAuth\x1b[12Gtoken\\r\\n\\r\\n' + process.env.FAKE_TOKEN + '\\r\\n');
-  } else {
-    out("\\r\\n\x1b[2GOAuth\x1b[8Gerror:\x1b[15GThat code wasn't accepted.\\r\\nPress Enter to retry\\r\\n");
-  }
+  const s = chunk.toString();
+  if (s === '\\r' || s === '\\n') return submit();
+  field += s.replace(/[\\r\\n]/g, '');
+  out('\x1b[2G' + '*'.repeat(12) + field.slice(-6));
 });
 setInterval(() => {}, 1000);
 `;
@@ -779,10 +791,12 @@ describe('connecting the subscription by link', () => {
   it('explains a rejected code and asks for a fresh link', async () => {
     await start();
     await begin();
-    const rejected = await sendCode('kode-salah-0123456789');
+    const rejected = await sendCode('kode-salah-0123456789#state-tes');
     expect(rejected.statusCode).toBe(400);
+    expect(rejected.json().error).toMatchObject({ code: 'aos_login_code' });
     expect(rejected.json().error.message).toContain('Kode tidak diterima Claude');
     expect((await loadCredentials(app.deps)).subscription).toBeUndefined();
+    // Kode yang ditolak Claude menghabiskan sesinya.
     expect((await sendCode('kode-benar-0123456789#state-tes')).statusCode).toBe(409);
 
     // Tautan baru bisa dibuat lagi dan berhasil.
@@ -790,14 +804,40 @@ describe('connecting the subscription by link', () => {
     expect((await sendCode('kode-benar-0123456789#state-tes')).statusCode).toBe(200);
   });
 
-  it('refuses codes with control characters, supports cancelling, and needs a session', async () => {
+  it('passes on what Claude says when it refuses the sign-in for another reason', async () => {
+    await start();
+    await begin();
+    const refused = await sendCode('akun-ditolak-0123456789#state-tes');
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().error.message).toContain(`Claude menolak login ini: "This account can't be used here."`);
+    // Kode yang diketik tidak ikut tercetak di pesan galat.
+    expect(refused.json().error.message).not.toContain('akun-ditolak-0123456789');
+  });
+
+  it('catches a miscopied code before it reaches Claude, so the same link can still be used', async () => {
     await start();
     expect((await sendCode('kode-benar-0123456789#state-tes')).statusCode).toBe(409);
     await begin();
-    const odd = await sendCode('kode\u001b[2Jjahat-0123456789');
+
+    const incomplete = await sendCode('kode-benar-0123456789');
+    expect(incomplete.statusCode).toBe(400);
+    expect(incomplete.json().error).toMatchObject({ code: 'aos_login_code_format' });
+    expect(incomplete.json().error.message).toContain('termasuk tanda # di tengahnya');
+
+    const address = await sendCode('https://claude.ai/oauth/authorize?abc');
+    expect(address.json().error.message).toContain('Itu alamat web, bukan kodenya');
+
+    const odd = await sendCode('kode\u001b[2Jjahat#0123456789');
     expect(odd.statusCode).toBe(400);
     expect(odd.json().error.message).toContain('Kode tidak dikenali');
-    // Kode yang ditolak di sisi aplikasi tidak menghabiskan sesi.
+
+    // Sesi masih hidup: kode yang benar langsung diterima tanpa tautan baru.
+    expect((await sendCode('kode-benar-0123456789#state-tes')).statusCode).toBe(200);
+  });
+
+  it('can be cancelled', async () => {
+    await start();
+    await begin();
     const cancelled = await call('DELETE', '/api/assistant/credentials/subscription/login', admin);
     expect(cancelled.statusCode).toBe(200);
     expect((await sendCode('kode-benar-0123456789#state-tes')).statusCode).toBe(409);
