@@ -10,6 +10,11 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
   - `bin/maintenance.sh on|off|status` di server; webhook Meta dijawab 503 selama pemeliharaan agar dikirim ulang (pesan tidak hilang).
   - Diuji di sandbox server dengan aaPanel di-stub.
   - Keadaan produksi sebelum deploy ini ditandai tag `prod-20261102-77860a1`.
+  - **Percobaan pertama (12:14) gagal** dan situs menampilkan halaman pemeliharaan ±2 menit 40 detik sebelum dipulihkan manual ke release lama. Penyebab: aaPanel diperbarui pagi itu dan Project Daemon barunya bertabrakan dengan stop→start `bin/restart.sh`; file pid panel hilang dan restart berikutnya ditolak "Project did not start". Panel juga tidak bisa menemukan kembali proses Node 24 (bernama `MainThread`).
+- **Selesai (25 Nov 2026):** restart yang tahan terhadap pelacakan proses aaPanel, dan uji asap sebelum live (SPEC §12.3 langkah 3a, §12.3b).
+  - `bin/restart.sh` mencari proses proyek sendiri, menyamakan file pid sebelum dan sesudah restart, dan tetap menyalakan walau stop gagal; mode `adopt` dipakai watchdog saat sehat.
+  - `activate.sh`, `rollback.sh`, dan `maintenance.sh` menilai hasil dari `/healthz`, bukan kode keluar restart; kunci deploy menunggu 20 detik.
+  - `deploy/server/smoke.sh`: selagi halaman pemeliharaan terpasang, release baru dijalankan di port samping dan diperiksa sebelum dijadikan live.
 - **Selesai (25 Nov 2026):** perbaikan isi yang terbawa saat pindah chat.
   - Kotak balas dan panel info kontak kini dipasang ulang per percakapan (`key` di `ChatPane`). Sebelumnya teks yang belum dikirim ikut pindah ke chat lain (risiko salah kirim), dan "Simpan nama" bisa menimpa nama kontak lain.
   - Draf disimpan per percakapan selama tab terbuka, jadi muncul lagi saat chat itu dibuka kembali.

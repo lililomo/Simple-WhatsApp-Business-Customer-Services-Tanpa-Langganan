@@ -21,6 +21,8 @@ APP_CMD='node --env-file=.env app/server/dist/index.js'
 MAINT_CMD='node --env-file=.env maintenance/server.mjs'
 PORT="$(sed -n 's/^PORT=\([0-9]*\).*/\1/p' "$APP_DIR/.env" | head -1)"
 HEALTH_URL="http://127.0.0.1:${PORT:-3210}/healthz"
+# Jawaban aaPanel dari pergantian terakhir, untuk diagnosis bila gagal.
+TRACE="/tmp/${PROJECT_NAME}-maintenance.log"
 
 log() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG"; }
 
@@ -37,7 +39,7 @@ find_file() {
 aapanel() {
   if [[ -n "${AAPANEL_STUB:-}" ]]; then bash "$AAPANEL_STUB" "$@"; return; fi
   case "$1" in
-    restart) bash "$APP_DIR/bin/restart.sh" "$PROJECT_NAME" ;;
+    restart) bash "$SCRIPT_DIR/restart.sh" "$PROJECT_NAME" ;;
     set-script) (cd /www/server/panel && btpython "$MAINT_DIR/aapanel_project.py" set-script "$PROJECT_NAME" "$2") ;;
   esac
 }
@@ -54,9 +56,10 @@ wait_for() {
 }
 
 # Ganti perintah jalan, restart, tunggu /healthz berisi $2. Kunci deploy tidak diwariskan ke proses Node.
+# Hasil restart dinilai dari /healthz, bukan dari kode keluarnya: aaPanel bisa melapor gagal padahal proses hidup.
 switch_to() {
-  aapanel set-script "$1" >/dev/null 2>&1 9>&- || return 1
-  aapanel restart >/dev/null 2>&1 9>&- || return 1
+  aapanel set-script "$1" >"$TRACE" 2>&1 9>&- || return 1
+  aapanel restart >>"$TRACE" 2>&1 9>&-
   wait_for "$2"
 }
 
@@ -70,8 +73,9 @@ if [[ "$ACTION" == "status" ]]; then
   exit 0
 fi
 
+# Menunggu sebentar: watchdog memegang kunci yang sama beberapa saat tiap 5 menit.
 exec 9>"/tmp/${PROJECT_NAME}-deploy.lock"
-flock -n 9 || { echo "Deploy lain sedang berjalan."; exit 1; }
+flock -w 20 9 || { echo "Deploy lain sedang berjalan."; exit 1; }
 
 case "$ACTION" in
   on)
@@ -80,18 +84,22 @@ case "$ACTION" in
     mkdir -p "$MAINT_DIR" "$APP_DIR/bin" || exit 1
     [[ "$page" -ef "$MAINT_DIR/server.mjs" ]] || cp "$page" "$MAINT_DIR/server.mjs" || exit 1
     [[ "$helper" -ef "$MAINT_DIR/aapanel_project.py" ]] || cp "$helper" "$MAINT_DIR/aapanel_project.py" || exit 1
-    # Salinan di bin/ dipakai "off" bila release asal skrip ini dihapus karena build gagal.
-    [[ "${BASH_SOURCE[0]}" -ef "$APP_DIR/bin/maintenance.sh" ]] || cp "${BASH_SOURCE[0]}" "$APP_DIR/bin/maintenance.sh" || exit 1
-    chmod +x "$APP_DIR/bin/maintenance.sh"
-    chown -R "$RUN_USER:$RUN_USER" "$MAINT_DIR" "$APP_DIR/bin/maintenance.sh"
+    # Salinan di bin/ dipakai "off" bila release asal skrip ini dihapus karena build gagal. restart.sh ikut disalin
+    # supaya "off" memakai versi yang sama dengan "on".
+    for script in maintenance.sh restart.sh; do
+      [[ "$SCRIPT_DIR/$script" -ef "$APP_DIR/bin/$script" ]] || cp "$SCRIPT_DIR/$script" "$APP_DIR/bin/$script" || exit 1
+      chmod +x "$APP_DIR/bin/$script"
+    done
+    chown -R "$RUN_USER:$RUN_USER" "$MAINT_DIR" "$APP_DIR/bin/maintenance.sh" "$APP_DIR/bin/restart.sh"
 
     log "Pemeliharaan: dipasang"
     if switch_to "$MAINT_CMD" '"app":"maintenance"'; then
       log "Pemeliharaan: aktif"
       exit 0
     fi
-    log "Pemeliharaan: halaman tidak menjawab, aplikasi dijalankan lagi"
-    switch_to "$APP_CMD" '"version"' && log "Aplikasi berjalan lagi" || log "GAGAL menjalankan aplikasi lagi: cek manual"
+    log "Pemeliharaan: halaman tidak menjawab (lihat $TRACE), aplikasi dijalankan lagi"
+    cp "$TRACE" "$TRACE.on-gagal" 2>/dev/null
+    switch_to "$APP_CMD" '"version"' && log "Aplikasi berjalan lagi" || log "GAGAL menjalankan aplikasi lagi: cek manual ($TRACE)"
     exit 1
     ;;
   off)
@@ -107,7 +115,7 @@ case "$ACTION" in
       log "Aplikasi berjalan lagi"
       exit 0
     fi
-    log "GAGAL menjalankan aplikasi lagi: cek manual"
+    log "GAGAL menjalankan aplikasi lagi: cek manual ($TRACE)"
     exit 1
     ;;
   *)

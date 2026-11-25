@@ -14,7 +14,8 @@ flock -n 9 || { echo "Deploy lain sedang berjalan."; exit 1; }
 
 switch_to() {
   ln -sfn "releases/$1" "$APP_DIR/app.new" && mv -Tf "$APP_DIR/app.new" "$APP_DIR/app" || return 1
-  bash "$APP_DIR/bin/restart.sh" "$PROJECT_NAME" >/dev/null 2>&1 9>&- || return 1
+  # Hasil restart dinilai dari /healthz di bawah, bukan dari kode keluarnya (lihat restart.sh).
+  bash "$APP_DIR/bin/restart.sh" "$PROJECT_NAME" >/dev/null 2>&1 9>&-
   for _ in $(seq 1 20); do
     sleep 2
     curl -fsS --max-time 3 "http://127.0.0.1:${PORT:-3210}/healthz" 2>/dev/null | grep -q "\"version\":\"${1##*-}" && return 0

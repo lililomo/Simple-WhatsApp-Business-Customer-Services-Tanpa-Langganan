@@ -27,8 +27,9 @@ export PATH="$NODE_DIR:$PATH"
 
 log() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG"; }
 
+# Menunggu sebentar: watchdog memegang kunci yang sama beberapa saat tiap 5 menit.
 exec 9>"/tmp/${PROJECT_NAME}-deploy.lock"
-flock -n 9 || { echo "Deploy lain sedang berjalan."; exit 1; }
+flock -w 20 9 || { echo "Deploy lain sedang berjalan."; exit 1; }
 
 # Cache npm global aaPanel dimiliki root, jadi build sebagai www memakai cache sendiri.
 as_app() {
@@ -85,6 +86,15 @@ log "Migrasi database"
 (cd "$APP_DIR" && as_app node --env-file="$APP_DIR/.env" "$RELEASE_DIR/server/dist/cli.js" db:migrate) \
   >>"$BUILD_LOG" 2>&1 || abort_build "db:migrate"
 
+# Uji asap sebelum live (SMOKE_TEST=1 dari deploy.sh saat halaman pemeliharaan terpasang): release baru dijalankan
+# di port samping dan diperiksa sebelum produksi disentuh. Hanya saat pemeliharaan, supaya tidak ada dua worker
+# webhook yang aktif bersamaan.
+if [[ "${SMOKE_TEST:-0}" == "1" ]]; then
+  log "Uji asap $REL"
+  APP_DIR="$APP_DIR" RUN_USER="$RUN_USER" NODE_DIR="$NODE_DIR" bash "$SCRIPT_DIR/smoke.sh" "$RELEASE_DIR" "$SHA" \
+    >>"$BUILD_LOG" 2>&1 9>&- || abort_build "uji asap"
+fi
+
 mkdir -p "$APP_DIR/bin" &&
   cp "$RELEASE_DIR"/deploy/server/bin/*.sh "$APP_DIR/bin/" &&
   chmod +x "$APP_DIR"/bin/*.sh || abort_build "salin bin/"
@@ -94,7 +104,9 @@ ln -sfn "releases/$REL" "$APP_DIR/app.new" && mv -Tf "$APP_DIR/app.new" "$APP_DI
 chown -h "$RUN_USER:$RUN_USER" "$APP_DIR/app"
 
 aapanel set-script "$APP_CMD" >>"$BUILD_LOG" 2>&1 || log "Peringatan: gagal mengubah perintah jalan aaPanel"
-if restart_app && wait_healthy "$SHA"; then
+# Hasil restart dinilai dari /healthz, bukan dari kode keluarnya: aaPanel bisa melapor gagal padahal proses hidup.
+restart_app
+if wait_healthy "$SHA"; then
   log "OK $REL"
   # Simpan release terbaru saja; release yang sedang aktif tidak pernah dihapus.
   ls -1 "$APP_DIR/releases" | sort -r | tail -n +$((KEEP_RELEASES + 1)) | while read -r old; do
@@ -112,7 +124,8 @@ else
   rm -f "$APP_DIR/app"
   expect=""
 fi
-if restart_app && wait_healthy "$expect"; then
+restart_app
+if wait_healthy "$expect"; then
   log "Rollback selesai (${prev:-placeholder})"
 else
   log "ROLLBACK GAGAL: cek manual"

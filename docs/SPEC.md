@@ -514,6 +514,7 @@ Pengembangan dan deploy dilakukan dari laptop, oleh sesi Claude Code di folder p
    1. Mengunci proses dengan `flock`. Deskriptor kunci ditutup saat memanggil restart (`9>&-`), agar proses Node tidak mewarisi kunci.
    2. Menaruh Node 24 di PATH, lalu menjalankan `npm ci` dan `npm run build` sebagai `www` di folder release, dengan `APP_VERSION=<sha>`. Folder release tidak punya `.git`, jadi versi diberikan lewat env. Jika gagal: folder release dihapus, produksi tidak berubah, exit 1.
    3. Migrasi: `node --env-file=<APP_DIR>/.env releases/<rel>/server/dist/cli.js db:migrate` sebagai `www`. **Migrasi wajib additive**, karena rollback hanya mengembalikan kode, bukan skema.
+   3a. **Uji asap sebelum live** (`deploy/server/smoke.sh`, hanya saat halaman pemeliharaan terpasang: `SMOKE_TEST=1`). Release baru dijalankan di port samping (`PORT`+9, hanya 127.0.0.1) dengan `.env` dan database produksi, lalu diperiksa: `/healthz` melaporkan `<sha>`, halaman utama dan berkas JavaScript-nya termuat, `/privacy` 200, `/api/auth/options` 200, `/api/auth/me` dan `/api/conversations` 401 tanpa login, webhook bertanda tangan palsu 401 (membuktikan database dan `APP_KEY` terbaca), dan tidak ada error di log saat menyala. Gagal → release dihapus, produksi tidak berubah, exit 1. Proses uji dijalankan dari folder release, bukan folder proyek, supaya aaPanel tidak mengiranya aplikasi.
    4. Menyalin `deploy/server/bin/*` ke `<APP_DIR>/bin/`.
    5. Mencatat target symlink lama, lalu `ln -sfn releases/<rel> app`.
    6. Jika perintah jalan aaPanel belum `node --env-file=.env app/server/dist/index.js`, mengubahnya lewat `nodejsModel.modify_project`.
@@ -545,7 +546,28 @@ Selama deploy, perintah jalan Node project aaPanel diganti sementara menjadi `no
 - `maintenance.sh status`: `pemeliharaan` atau `aplikasi berjalan`.
 - Memakai kunci `flock` yang sama dengan deploy; `AAPANEL_STUB` didukung untuk uji sandbox.
 - Tab petugas yang sudah terbuka tidak berpindah ke halaman pemeliharaan (SPA sudah termuat; permintaannya saja yang gagal) dan perlu dimuat ulang setelah deploy.
-- Uji sandbox 25 Nov 2026 (aaPanel di-stub, port terpisah): pasang, lepas, lepas saat aplikasi sudah berjalan, halaman pemeliharaan rusak (aplikasi kembali, exit 1), aktivasi berhasil lalu `off` tanpa restart, build gagal dengan release terhapus, pasang manual dari `bin/`, kunci dipegang proses lain, dan kunci tidak diwarisi proses Node. Semuanya lolos.
+- Uji sandbox 25 Nov 2026 (aaPanel di-stub, port terpisah): pasang, lepas, lepas saat aplikasi sudah berjalan, halaman pemeliharaan rusak (aplikasi kembali, exit 1), aktivasi berhasil lalu `off` tanpa restart, build gagal dengan release terhapus, pasang manual dari `bin/`, kunci dipegang proses lain, kunci tidak diwarisi proses Node, dan restart yang melapor gagal padahal prosesnya hidup. Semuanya lolos.
+- Jawaban aaPanel dari pergantian terakhir disimpan di `/tmp/<project>-maintenance.log` untuk diagnosis.
+
+### 12.3b Restart dan pelacakan proses aaPanel (`bin/restart.sh`)
+
+aaPanel melacak Node project **hanya lewat file pid** (`/www/server/nodejs/vhost/pids/<project>.pid`). Dua hal membuatnya mudah meleset, dan keduanya terjadi pada percobaan deploy 25 Nov 2026 12:14:
+
+- Node 24 menamai prosesnya `MainThread`, sedangkan pencarian proses bawaan panel (`get_project_state_by_cwd`) hanya mengenali nama `node`/`npm`/`pm2`/`yarn`. Panel tidak pernah menemukan kembali aplikasi yang file pid-nya hilang.
+- Sejak pembaruan panel 25 Nov 2026 ada **Project Daemon** (`/www/server/panel/script/project_daemon.py`, sekitar tiap 2 menit) yang menyalakan proyek ber-`is_power_on` yang menurut file pid mati. Bila ia menyala di sela stop dan start sebuah restart, dua proses berebut port dan file pid hilang walau satu proses hidup.
+
+Tanpa file pid, `restart_project` bawaan berhenti di `stop_project` dengan "Project did not start" dan tidak menyalakan apa pun. Karena itu `bin/restart.sh`:
+
+1. mencari proses proyek sendiri: `cwd` = folder proyek, berkas `node`, dan `NODE_PROJECT_NAME` = nama proyek (diekspor skrip start panel);
+2. menulis ulang file pid dari proses yang hidup sebelum `stop_project`, lalu mematikan sisa proses proyek yang tidak ditunjuk file pid;
+3. menjalankan `start_project` walau stop gagal, menunggu sampai tepat satu proses hidup, dan menyamakan file pid lagi;
+4. keluar 0 bila ada proses proyek yang hidup, siapa pun yang menyalakannya.
+
+`restart.sh <project> adopt` hanya melakukan langkah penyamaan file pid, tanpa restart; watchdog menjalankannya tiap kali `/healthz` sehat.
+
+**Semua pemanggil menilai hasil dari `/healthz`, bukan dari kode keluar restart** (`activate.sh`, `rollback.sh`, `maintenance.sh`). Kunci deploy diambil dengan `flock -w 20`, karena watchdog memegang kunci yang sama beberapa saat tiap 5 menit.
+
+Bila proyek tetap tersangkut ("Project did not start" dari panel): matikan proses yang memegang port, lalu panggil `start_project` (bukan restart) lewat `btpython`.
 
 Aturan penulisan skrip, dari review 1 Nov 2026:
 - Setiap langkah dicek eksplisit (`|| { log …; exit 1; }`). Jangan mengandalkan `set -e` di dalam fungsi yang dipanggil dari `if`, karena bash mengabaikannya di sana.
@@ -566,7 +588,7 @@ Operasional:
 
 | Nama tugas | Jadwal | Perintah | Kapan dibuat |
 |---|---|---|---|
-| WA Inbox – Watchdog | tiap 5 menit | `bash /www/wwwroot/wa.kppbwi.app/bin/watchdog.sh`: jika `/healthz` gagal 2× berturut-turut → `restart.sh`, catat ke log. Diperlukan karena aaPanel menjalankan Node project dengan `nohup` dan tidak menyalakan ulang proses yang crash | Prompt 3 |
+| WA Inbox – Watchdog | tiap 5 menit | `bash /www/wwwroot/wa.kppbwi.app/bin/watchdog.sh`: jika `/healthz` gagal 2× berturut-turut → `restart.sh`, catat ke log. Saat sehat: `restart.sh <project> adopt` agar file pid panel tetap cocok (§12.3b). Project Daemon aaPanel hanya menyalakan proyek yang menurut file pid mati; ia tidak tahu bila aplikasi hidup tetapi tidak menjawab | Prompt 3 |
 | Backup DB wainbox | harian 01:00, simpan 7 | Tipe **Backup Database** bawaan aaPanel | Prompt 3 |
 | WA Inbox – Sinkron template | tiap 30 menit | `bash /www/wwwroot/wa.kppbwi.app/bin/cli.sh templates:sync` | Prompt 8 |
 | WA Inbox – Housekeeping | harian 02:30 | `bash /www/wwwroot/wa.kppbwi.app/bin/cli.sh housekeeping`: hapus sesi kedaluwarsa, `webhook_events` selesai > 30 hari, delivery > 30 hari, idempotency > 24 jam, dan media > `MEDIA_RETENTION_DAYS` | Prompt 10 |

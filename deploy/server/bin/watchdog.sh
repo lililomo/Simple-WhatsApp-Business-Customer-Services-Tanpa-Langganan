@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Dijalankan cron aaPanel "WA Inbox – Watchdog" tiap 5 menit.
-# aaPanel menjalankan Node project dengan nohup dan tidak menyalakan ulang proses yang crash,
-# jadi skrip ini me-restart lewat aaPanel jika /healthz gagal 2 kali berturut-turut.
+# Me-restart lewat aaPanel jika /healthz gagal 2 kali berturut-turut. Project Daemon aaPanel (sejak 25 Nov 2026)
+# hanya menyalakan proyek yang menurut file pid-nya mati; ia tidak tahu bila aplikasi hidup tetapi tidak menjawab.
+# Saat sehat, skrip ini juga menyamakan file pid panel dengan proses yang hidup (restart.sh adopt), supaya daemon
+# itu tidak mengira proyek mati dan mencoba menyalakannya terus.
 set -uo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_NAME="${PROJECT_NAME:-wa_kppbwi_app}"
@@ -15,6 +17,9 @@ flock -n 9 || exit 0
 
 if curl -fsS --max-time 5 "http://127.0.0.1:${PORT:-3210}/healthz" >/dev/null 2>&1; then
   rm -f "$STATE"
+  # Kunci dilepas dulu supaya deploy tidak tertahan oleh langkah ini.
+  exec 9>&-
+  bash "$APP_DIR/bin/restart.sh" "$PROJECT_NAME" adopt >/dev/null 2>&1
   exit 0
 fi
 

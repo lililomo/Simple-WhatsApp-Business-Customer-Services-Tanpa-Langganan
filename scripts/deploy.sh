@@ -46,9 +46,10 @@ if ((maintenance)); then
   # Semuanya satu perintah di server dengan SIGHUP/SIGPIPE diabaikan: bila koneksi SSH putus di tengah, aktivasi
   # tetap selesai dan situs tidak tertinggal di mode pemeliharaan. Aktivasi yang berhasil menjalankan aplikasi
   # lagi dengan sendirinya; bila gagal, "off" menjalankan lagi release lama.
-  echo "Memasang halaman pemeliharaan lalu mengaktifkan $release"
+  # SMOKE_TEST=1: selagi situs tertutup, release baru diuji di port samping sebelum dijadikan live.
+  echo "Memasang halaman pemeliharaan, menguji, lalu mengaktifkan $release"
   ssh "$DEPLOY_HOST" "trap '' HUP PIPE
-export APP_DIR='$APP_DIR'
+export APP_DIR='$APP_DIR' SMOKE_TEST=1
 if ! bash '$release_dir/deploy/server/bin/maintenance.sh' on; then rm -rf '$release_dir'; exit 1; fi
 $activate; rc=\$?
 [ \$rc -eq 0 ] || bash '$APP_DIR/bin/maintenance.sh' off
