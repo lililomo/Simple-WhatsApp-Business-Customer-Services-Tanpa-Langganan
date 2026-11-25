@@ -17,8 +17,9 @@ NODE_DIR="${NODE_DIR:-/www/server/nodejs/v24.14.0/bin}"
 RUN_USER="${RUN_USER:-www}"
 LOG="${DEPLOY_LOG:-/www/wwwlogs/${PROJECT_NAME}-deploy.log}"
 KEEP_RELEASES="${KEEP_RELEASES:-3}"
-# AOS menjalankan proses Claude Code di samping Node; batas memori proyek di aaPanel minimal sebesar ini (MB).
-MIN_MEMORY_MB="${MIN_MEMORY_MB:-2048}"
+# AOS menjalankan proses Claude Code di samping Node. Bila MIN_MEMORY_MB diisi (mis. 2048), batas memori proyek di
+# aaPanel dinaikkan sampai nilai itu; 0 = tidak diubah. Hanya diisi atas persetujuan pemilik server.
+MIN_MEMORY_MB="${MIN_MEMORY_MB:-0}"
 VENDOR_DIR="$APP_DIR/vendor/claude-agent-sdk"
 APP_CMD='node --env-file=.env app/server/dist/index.js'
 PLACEHOLDER_CMD='node placeholder/server.js'

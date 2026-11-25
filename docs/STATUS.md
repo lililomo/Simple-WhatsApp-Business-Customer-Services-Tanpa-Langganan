@@ -13,7 +13,7 @@ Diperbarui di akhir setiap langkah (lihat CLAUDE.md). Entri terbaru di atas.
   - **Sumber**: Pustaka kantor (alat `cari_pustaka`/`baca_pustaka`) dan internet yang dibatasi ke daftar situs (bawaan: situs resmi pemerintah dan beberapa situs perpajakan).
   - **Privasi**: NIK/NPWP, telepon, dan email disamarkan sebelum dikirim ke Claude; gambar kiriman WP ikut dibaca bila diizinkan.
   - **Pustaka** (`/pustaka`, semua petugas): unggah PDF/DOCX/PPTX/TXT/MD/CSV/JPG/PNG atau tulis catatan; diproses di latar menjadi potongan teks berindeks FULLTEXT; tempat sampah 30 hari.
-  - **Deploy**: biner Claude Code (±400 MB) disimpan satu salinan di `<APP_DIR>/vendor/`; batas memori proyek dinaikkan ke 2048 MB.
+  - **Deploy**: biner Claude Code (±400 MB) disimpan satu salinan di `<APP_DIR>/vendor/`. Batas memori proyek di aaPanel (1024 MB) belum diubah; `MIN_MEMORY_MB=2048 bash scripts/deploy.sh` menaikkannya setelah pemilik setuju.
   - AOS dikirim dalam keadaan **mati**; baru aktif setelah admin menghubungkan minimal satu jalur dan menyalakannya.
   - Belum diuji dengan kredensial Claude sungguhan (tidak tersedia saat pembangunan): alur diuji dengan mesin tiruan, dan penanganan kredensial yang ditolak diuji dengan SDK asli. Uji pertama di produksi lewat tombol "Uji koneksi".
 - **Selesai (25 Nov 2026):** tab tersambung ulang sendiri setelah server restart (SPEC §8).

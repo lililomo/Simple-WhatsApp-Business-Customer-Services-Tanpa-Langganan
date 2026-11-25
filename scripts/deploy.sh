@@ -49,13 +49,13 @@ if ((maintenance)); then
   # SMOKE_TEST=1: selagi situs tertutup, release baru diuji di port samping sebelum dijadikan live.
   echo "Memasang halaman pemeliharaan, menguji, lalu mengaktifkan $release"
   ssh "$DEPLOY_HOST" "trap '' HUP PIPE
-export APP_DIR='$APP_DIR' SMOKE_TEST=1
+export APP_DIR='$APP_DIR' SMOKE_TEST=1 MIN_MEMORY_MB='${MIN_MEMORY_MB:-0}'
 if ! bash '$release_dir/deploy/server/bin/maintenance.sh' on; then rm -rf '$release_dir'; exit 1; fi
 $activate; rc=\$?
 [ \$rc -eq 0 ] || bash '$APP_DIR/bin/maintenance.sh' off
 exit \$rc"
 else
-  ssh "$DEPLOY_HOST" "$activate"
+  ssh "$DEPLOY_HOST" "MIN_MEMORY_MB='${MIN_MEMORY_MB:-0}' $activate"
 fi
 
 git push -q origin HEAD || echo "Peringatan: push ke GitHub gagal (deploy tetap berhasil)."

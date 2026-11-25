@@ -760,7 +760,7 @@ app_settings   + assistant (AssistantSettings), assistant_credentials ({subscrip
 - Token dan kunci disimpan terenkripsi (`APP_KEY`), tidak pernah dikirim balik ke browser (hanya 4 karakter terakhir).
 - Biner Claude Code (±400 MB) disimpan satu salinan per versi di `<APP_DIR>/vendor/`, bukan di tiap release (lihat `activate.sh`). Versi yang tidak lagi dipakai release mana pun dihapus saat deploy.
 - Proses anak tidak mewarisi rahasia aplikasi (`DATABASE_URL`, `APP_KEY`, secret SSO) dan tidak punya alat shell atau berkas.
-- `activate.sh` menaikkan batas memori Node project di aaPanel menjadi minimal 2048 MB (tidak pernah menurunkan).
+- Tiap panggilan AOS menjalankan satu proses anak (ratusan MB). Batas memori Node project di aaPanel hanya diubah bila deploy dijalankan dengan `MIN_MEMORY_MB=<MB>` (dinaikkan sampai nilai itu, tidak pernah diturunkan); bawaannya tidak diubah.
 - Anggaran `budget.monthlyUsd` hanya berlaku untuk jalur API; bila habis, jalur API dilewati sampai bulan berikutnya (WIB).
 - Uji koneksi memakai model jawaban dengan effort rendah dan tidak berpindah jalur.
 
