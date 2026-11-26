@@ -792,6 +792,10 @@ Satu percakapan hanya menyusun satu jawaban pada satu waktu (permintaan kedua di
 
 "Simpan ke Pustaka" (Bank Jawaban) membuat catatan bertag `bank jawaban`; "Simpan sebagai balasan cepat" membuat balasan cepat. Keduanya menyimpan draf yang sudah disamarkan lagi, supaya data WP tidak ikut terpakai untuk WP lain.
 
+Bagian tambahan `<infografis>`: dokumen HTML+CSS mandiri yang didesain model sendiri (lebar `INFOGRAPHIC_WIDTH` = 1080 px). Server menyaringnya dengan `sanitizeInfographic` (skrip, elemen pemuat halaman lain, atribut `on*`, dan semua alamat `http(s):`/`//`/`javascript:` dibuang) dan menyimpannya di `AosAnswer.infographic`. Web menampilkannya di iframe `sandbox="allow-same-origin"` (tanpa skrip) di bawah CSP aplikasi, dan membuat PNG di browser lewat SVG `foreignObject` → kanvas dengan font Plus Jakarta Sans disematkan sebagai data URL. Tindakan `infographic` (dengan `targetId` opsional) meminta infografis dari sebuah jawaban atau dari pokok percakapan.
+
+Draf boleh terdiri dari beberapa bagian `<draf>`; `AosAnswer.parts` berisi bagian-bagian yang masing-masing ≤ `WA_PART_MAX` (4.000) karakter (`splitForWhatsApp` memecah di batas paragraf, baris, kalimat, lalu kata). Jawaban berupa teks biasa juga bisa dipakai, diperpendek, dan diperhalus.
+
 Isi chat WP disamarkan sebelum dikirim (`maskSensitive`: NIK/NPWP, telepon, email → `[ID-1]` dst.) dan dikembalikan di tampilan petugas. Lampiran gambar dari pesan WP terbaru (maks. 3) ikut dikirim bila `privacy.attachments` menyala.
 
 ### 19.5 API (semua butuh sesi; `(admin)` = khusus admin)

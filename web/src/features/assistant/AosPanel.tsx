@@ -136,6 +136,9 @@ function AskBox({
         <button type="button" disabled={busy} onClick={() => onAsk({ action: 'explain' })}>
           Jelaskan maksud pesan
         </button>
+        <button type="button" disabled={busy} onClick={() => onAsk({ action: 'infographic' })}>
+          Buat infografis
+        </button>
       </div>
       <div className="aos-input">
         <textarea
@@ -262,6 +265,13 @@ export function AosPanel({
       else applyDraft(message, draft, 'replace');
     },
     copy: (text) => void copyText(text),
+    attach: (file) => {
+      const composer = composerRef.current;
+      if (!composer) return;
+      composer.addFiles([file]);
+      // Lembar selayar penuh menutupi kotak balas; ditutup agar petugas langsung melihat lampirannya.
+      if (isAosSheet()) onClose();
+    },
     save: (message, target) => setSaving({ message, target }),
   };
 

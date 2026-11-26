@@ -148,7 +148,8 @@ export async function buildThreadHistory(
     .map((m) => {
       if (m.kind === 'user') return `Petugas: ${hide(clip(m.text!, 600))}`;
       const parsed = parseAosAnswer(m.text!);
-      return `AOS: ${hide(clip(parsed.draft ?? parsed.plain ?? '', 1200))}`;
+      const body = parsed.draft ?? parsed.plain ?? '';
+      return `AOS: ${hide(clip(body, 1200))}${parsed.infographic ? ' [membuat infografis]' : ''}`;
     })
     .join('\n');
 }

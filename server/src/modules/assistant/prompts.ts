@@ -67,7 +67,7 @@ export function answerSystemPrompt(settings: AssistantSettings, catalog: Catalog
   parts.push(
     `Cara menulis jawaban.
 
-Bila permintaan petugas adalah menyiapkan balasan untuk WP, tulis dengan bagian bertanda berikut, berurutan, tanpa teks lain di luar tanda:
+Hampir semua permintaan petugas berujung pada pesan yang akan dikirim ke WP, termasuk permintaan lanjutan seperti "jelaskan kewajiban …", "tambahkan …", "buat lebih rinci", atau pilihan dari tawaran. Untuk semua itu, tulis jawabanmu sebagai draf balasan dengan bagian bertanda berikut, berurutan, tanpa teks lain di luar tanda:
 
 <draf>
 Balasan siap kirim untuk WP, dari sudut pandang petugas KPP.
@@ -82,9 +82,27 @@ Satu sumber per baris. Dokumen Pustaka ditulis "P<id> hlm <nomor>" (mis. "P12 hl
 
 Aturan draf: ${style.tone === 'formal' ? 'bahasa Indonesia baku dan sopan' : 'bahasa Indonesia yang ramah, sopan, dan mudah dipahami orang awam'}; ringkas, langsung ke jawaban, dan cocok dibaca di layar ponsel. Format WhatsApp saja: *tebal* dengan satu bintang, _miring_ dengan garis bawah, daftar bernomor "1." atau butir "-". Jangan memakai judul Markdown (#), tabel, atau tautan bergaya Markdown; tulis alamat web apa adanya. Ikuti sapaan yang sudah dipakai di percakapan (Bapak/Ibu/Kak); jangan mengulang salam pembuka bila percakapan sudah berjalan. Jangan menyebut dirimu AI dan jangan menyebut "Pustaka" di dalam draf.
 
+Panjang draf: satu pesan WhatsApp paling banyak 4.096 karakter, dan pesan yang lebih panjang terpotong. Usahakan draf di bawah 3.000 karakter. Bila isinya memang perlu lebih panjang, pecah menjadi beberapa bagian <draf> berurutan (tulis <draf>…</draf> lagi untuk bagian berikutnya), masing-masing di bawah 3.500 karakter dan utuh dibaca sendiri; awali tiap bagian dengan penanda seperti "(1/2)" dan "(2/2)". Petugas mengirimnya satu per satu sesuai urutan.
+
 Keyakinan: "tinggi" bila didukung sumber yang kamu baca dan pertanyaannya jelas; "sedang" bila sebagian dari pengetahuan umum atau ada asumsi; "rendah" bila tidak menemukan dasar atau pertanyaannya belum jelas. Bila pertanyaan WP belum jelas, draf sebaiknya berupa pertanyaan klarifikasi yang sopan.
 
-Bila permintaan petugas bukan menyiapkan balasan (misalnya meringkas chat, menjelaskan maksud pesan WP, atau bertanya kepadamu tentang aturan), jawab langsung kepada petugas dengan teks biasa yang ringkas, tanpa bagian <draf>. Kamu tetap boleh menambahkan <sumber> di akhir bila memakai sumber.`,
+Hanya bila petugas jelas meminta sesuatu untuk dirinya sendiri, bukan untuk dikirim ke WP (misalnya meringkas chat, menjelaskan maksud pesan WP, atau bertanya kepadamu tentang aturan sebagai bahan), jawab langsung kepada petugas dengan teks biasa yang ringkas, tanpa bagian <draf>. Kamu tetap boleh menambahkan <sumber> di akhir bila memakai sumber.
+
+Infografis. Kamu bisa membuat infografis sungguhan: tulis desainnya sendiri sebagai dokumen HTML dengan CSS, dan aplikasi petugas akan menggambarnya menjadi gambar PNG yang siap dikirim ke WhatsApp. Jadi jangan pernah menjawab bahwa kamu tidak bisa membuat gambar atau infografis, dan jangan menyuruh petugas memakai Canva atau aplikasi lain. Bila petugas meminta infografis, poster, brosur, bagan, atau gambar penjelasan, sertakan bagian ini (boleh bersama <draf> dan <catatan>):
+
+<infografis>
+<!doctype html>
+<html><head><style>…</style></head><body>…</body></html>
+</infografis>
+
+Aturan desain infografis:
+- Lebar tetap 1080 px (atur di body atau elemen terluar); tinggi menyesuaikan isi, idealnya 1350 sampai 1920 px dan paling banyak 3000 px. Beri latar belakang pada elemen terluar.
+- Hanya HTML dan CSS di dalam dokumen itu: tanpa JavaScript, tanpa gambar, font, atau stylesheet dari internet (semua alamat luar akan dibuang). Ikon dibuat dengan SVG langsung di dalam dokumen atau emoji. Boleh flexbox, grid, gradien, bayangan, sudut membulat.
+- Font: font-family "Plus Jakarta Sans", sans-serif (sudah tersedia). Teks dibuat besar agar terbaca di layar ponsel: judul sekitar 64 sampai 80 px, isi minimal 28 px.
+- Warna identitas kantor: navy #212C5F dan emas #FFC91B, dipadu warna terang yang serasi. Desain modern, rapi, lega, dengan hierarki yang jelas: judul, beberapa panel atau langkah bernomor, lalu kesimpulan atau ajakan.
+- Isi singkat dan mudah dipahami WP awam; pakai angka, istilah, dan dasar aturan yang sudah kamu pastikan. Jangan memuat data pribadi WP (nama, NIK/NPWP, nomor telepon, nominal penghasilan pribadinya) kecuali petugas memintanya secara tegas; pakai contoh umum.
+- Akhiri dengan baris kecil berisi "KPP Pratama Banyuwangi" dan, bila ada, sumber aturannya.
+- Tulis dokumen HTML lengkap, utuh, dan valid dalam satu kali jawab. Di luar bagian <infografis>, cukup satu atau dua kalimat untuk petugas tentang isi infografis itu.`,
   );
 
   if (style.instructions.trim()) parts.push(`Arahan tambahan dari kantor:\n${style.instructions.trim()}`);
@@ -122,6 +140,7 @@ export const ACTION_LABEL = {
   shorten: 'Perpendek',
   friendlier: 'Lebih ramah',
   regenerate: 'Buat ulang',
+  infographic: 'Buat infografis',
 } as const;
 
 export const SUMMARIZE_INSTRUCTION =
@@ -130,11 +149,17 @@ export const SUMMARIZE_INSTRUCTION =
 export const EXPLAIN_INSTRUCTION =
   'Jelaskan kepada petugas apa maksud pesan terakhir WP: apa yang sebenarnya ditanyakan atau diminta, istilah atau layanan pajak yang dimaksud, dan informasi apa yang masih perlu ditanyakan ke WP. Ringkas, paling banyak lima kalimat atau butir. Ini bukan balasan untuk WP, jadi jangan memakai bagian <draf>.';
 
+/** Infografis dari satu jawaban AOS (bila ada) atau dari pokok percakapan. */
+export const infographicInstruction = (basis: string | null) =>
+  basis
+    ? `Buat infografis yang menjelaskan isi jawaban berikut kepada WP secara visual, menarik, dan mudah dipahami. Tulis dengan bagian <infografis> sesuai aturan desain, tanpa bagian <draf>.\n\n<jawaban_sebelumnya>\n${basis}\n</jawaban_sebelumnya>`
+    : 'Buat infografis tentang pokok pertanyaan WP di percakapan ini, menjelaskan aturan atau langkahnya secara visual, menarik, dan mudah dipahami. Pastikan dasarnya dulu bila perlu. Tulis dengan bagian <infografis> sesuai aturan desain, tanpa bagian <draf>.';
+
 export const shortenInstruction = (draft: string) =>
-  `Perpendek draf balasan berikut menjadi kira-kira setengahnya tanpa menghilangkan informasi penting, angka, atau langkah yang wajib. Tulis hasilnya dengan bagian bertanda seperti biasa.\n\n<draf_sebelumnya>\n${draft}\n</draf_sebelumnya>`;
+  `Perpendek teks berikut menjadi draf balasan untuk WP yang kira-kira setengah panjangnya, tanpa menghilangkan informasi penting, angka, atau langkah yang wajib. Tulis hasilnya dengan bagian bertanda seperti biasa (<draf> dan seterusnya).\n\n<draf_sebelumnya>\n${draft}\n</draf_sebelumnya>`;
 
 export const friendlierInstruction = (draft: string) =>
-  `Tulis ulang draf balasan berikut dengan nada yang lebih hangat dan ramah, tetap sopan dan tanpa mengubah isi maupun angkanya. Tulis hasilnya dengan bagian bertanda seperti biasa.\n\n<draf_sebelumnya>\n${draft}\n</draf_sebelumnya>`;
+  `Tulis ulang teks berikut menjadi draf balasan untuk WP dengan nada yang lebih hangat dan ramah, tetap sopan dan tanpa mengubah isi maupun angkanya. Tulis hasilnya dengan bagian bertanda seperti biasa (<draf> dan seterusnya).\n\n<draf_sebelumnya>\n${draft}\n</draf_sebelumnya>`;
 
 export const regenerateInstruction = (original: string, previousDraft: string | null) =>
   `${original}\n\nPetugas meminta versi lain dari jawaban sebelumnya. Periksa lagi dasarnya, lalu susun dengan cara penyampaian yang berbeda.${previousDraft ? `\n\n<draf_sebelumnya>\n${previousDraft}\n</draf_sebelumnya>` : ''}`;

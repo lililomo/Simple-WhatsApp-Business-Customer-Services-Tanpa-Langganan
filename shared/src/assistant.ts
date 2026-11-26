@@ -160,6 +160,16 @@ export interface AosAnswer {
   notes: string | null;
   confidence: AosConfidence | null;
   sources: AosSource[];
+  /**
+   * Infografis yang didesain Claude sendiri: dokumen HTML+CSS mandiri (lebar 1080 px, tanpa skrip dan tanpa sumber
+   * luar), sudah disaring `sanitizeInfographic`. Browser petugas menggambarnya menjadi PNG. Tidak ada di jawaban lama.
+   */
+  infographic?: string | null;
+  /**
+   * Draf yang dipecah agar setiap bagian muat dalam satu pesan WhatsApp, urut sesuai urutan kirim. Hanya ada bila
+   * lebih dari satu bagian; jawaban lama tidak punya kolom ini (pakai `splitForWhatsApp(draft)`).
+   */
+  parts?: string[];
 }
 
 export interface AosMessageDTO {
@@ -193,7 +203,7 @@ export interface AosThreadDTO {
   openOfferId: string | null;
 }
 
-export const AOS_ACTIONS = ['summarize', 'explain', 'shorten', 'friendlier', 'regenerate'] as const;
+export const AOS_ACTIONS = ['summarize', 'explain', 'shorten', 'friendlier', 'regenerate', 'infographic'] as const;
 export type AosAction = (typeof AOS_ACTIONS)[number];
 
 export const aosAskBody = z
@@ -202,7 +212,7 @@ export const aosAskBody = z
     offerId: z.string().regex(/^\d+$/).optional(),
     optionIndex: z.number().int().min(0).max(9).optional(),
     action: z.enum(AOS_ACTIONS).optional(),
-    /** Jawaban yang dimaksud untuk shorten/friendlier/regenerate. */
+    /** Jawaban yang dimaksud untuk shorten/friendlier/regenerate (wajib) dan infographic (opsional). */
     targetId: z.string().regex(/^\d+$/).optional(),
   })
   .refine((b) => b.text !== undefined || b.action !== undefined || (b.offerId !== undefined && b.optionIndex !== undefined), {
@@ -248,8 +258,32 @@ const section = (text: string, tag: string): { value: string | null; open: boole
   return end < 0 ? { value: text.slice(from).trim(), open: true } : { value: text.slice(from, end).trim(), open: false };
 };
 
+/** Semua kemunculan satu bagian bertanda, berurutan (draf boleh ditulis dalam beberapa bagian). */
+const sections = (text: string, tag: string): string[] => {
+  const out: string[] = [];
+  let from = 0;
+  for (;;) {
+    const start = text.indexOf(`<${tag}>`, from);
+    if (start < 0) break;
+    const body = start + tag.length + 2;
+    const end = text.indexOf(`</${tag}>`, body);
+    const value = (end < 0 ? text.slice(body) : text.slice(body, end)).trim();
+    if (value) out.push(value);
+    if (end < 0) break;
+    from = end + tag.length + 3;
+  }
+  return out;
+};
+
 export interface ParsedAosAnswer {
+  /** Dokumen HTML infografis apa adanya (belum disaring); null bila tidak ada atau belum selesai ditulis. */
+  infographic: string | null;
+  /** Bagian infografis sudah dibuka tetapi belum ditutup (masih ditulis). */
+  infographicPending: boolean;
+  /** Seluruh draf; bila model menulis beberapa bagian <draf>, digabung dengan baris kosong. */
   draft: string | null;
+  /** Bagian-bagian <draf> apa adanya, berurutan. */
+  draftParts: string[];
   notes: string | null;
   confidence: AosConfidence | null;
   /** Baris mentah di bagian sumber, mis. "P12 hlm 3" atau alamat web. */
@@ -262,8 +296,15 @@ export interface ParsedAosAnswer {
  * Jawaban AOS ditulis model dengan bagian bertanda: <draf>, <catatan>, <keyakinan>, <sumber>.
  * Dipakai server (hasil akhir) dan web (teks yang masih mengalir, jadi bagian yang belum ditutup tetap dibaca).
  */
-export function parseAosAnswer(text: string): ParsedAosAnswer {
-  const draft = section(text, 'draf').value;
+export function parseAosAnswer(raw: string): ParsedAosAnswer {
+  // Infografis dibaca dan dibuang lebih dulu: isinya HTML yang bisa memuat teks mirip tanda bagian lain.
+  const info = section(raw, 'infografis');
+  const start = raw.indexOf('<infografis>');
+  const end = raw.indexOf('</infografis>', start);
+  const text = start < 0 ? raw : raw.slice(0, start) + (end < 0 ? '' : raw.slice(end + '</infografis>'.length));
+  const infographic = info.value && !info.open ? info.value : null;
+  const draftParts = sections(text, 'draf');
+  const draft = draftParts.join('\n\n');
   const notes = section(text, 'catatan').value;
   const conf = section(text, 'keyakinan').value?.toLowerCase() ?? '';
   const confidence = conf.includes('tinggi') ? 'tinggi' : conf.includes('sedang') ? 'sedang' : conf.includes('rendah') ? 'rendah' : null;
@@ -275,7 +316,94 @@ export function parseAosAnswer(text: string): ParsedAosAnswer {
     text
       .replace(/<(draf|catatan|keyakinan|sumber)>[\s\S]*?(<\/\1>|$)/g, '')
       .trim() || null;
-  return { draft: draft || null, notes: notes || null, confidence, sourceLines, plain };
+  return { infographic, infographicPending: info.open, draft: draft || null, draftParts, notes: notes || null, confidence, sourceLines, plain };
+}
+
+/* ---------- Batas panjang pesan WhatsApp ---------- */
+
+/** Batas aman satu pesan teks WhatsApp untuk draf AOS (batas Meta 4.096 karakter, disisakan sedikit). */
+export const WA_PART_MAX = 4000;
+
+/** Potong satu blok yang terlalu panjang: di batas baris, lalu kalimat, lalu kata. */
+function splitBlock(block: string, max: number): string[] {
+  if (block.length <= max) return [block];
+  for (const sep of ['\n', '. ', ' ']) {
+    const pieces = block.split(sep);
+    if (pieces.length < 2) continue;
+    const out: string[] = [];
+    let cur = '';
+    for (const [i, piece] of pieces.entries()) {
+      const unit = i < pieces.length - 1 ? piece + sep : piece;
+      if (cur && (cur + unit).length > max) {
+        out.push(cur.trimEnd());
+        cur = '';
+      }
+      cur += unit;
+    }
+    if (cur.trim()) out.push(cur.trimEnd());
+    if (out.every((p) => p.length <= max)) return out;
+    return out.flatMap((p) => splitBlock(p, max));
+  }
+  const out: string[] = [];
+  for (let i = 0; i < block.length; i += max) out.push(block.slice(i, i + max));
+  return out;
+}
+
+/**
+ * Memecah teks menjadi beberapa pesan yang masing-masing muat di WhatsApp, utamakan di batas paragraf supaya tiap
+ * bagian tetap utuh dibaca. Teks yang sudah muat dikembalikan apa adanya.
+ */
+export function splitForWhatsApp(text: string, max = WA_PART_MAX): string[] {
+  const clean = text.trim();
+  if (!clean) return [];
+  if (clean.length <= max) return [clean];
+  const out: string[] = [];
+  let cur = '';
+  for (const para of clean.split(/\n{2,}/)) {
+    for (const piece of splitBlock(para, max)) {
+      if (cur && cur.length + 2 + piece.length > max) {
+        out.push(cur);
+        cur = '';
+      }
+      cur = cur ? `${cur}\n\n${piece}` : piece;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/** Bagian-bagian draf siap kirim: tiap <draf> dari model, dipecah lagi bila masih melewati batas. */
+export function draftPartsForWhatsApp(parts: string[], max = WA_PART_MAX): string[] {
+  return parts.flatMap((part) => splitForWhatsApp(part, max));
+}
+
+/* ---------- Infografis ---------- */
+
+/** Lebar kanvas infografis (px); tingginya mengikuti isi. */
+export const INFOGRAPHIC_WIDTH = 1080;
+const INFOGRAPHIC_MAX_CHARS = 300_000;
+
+/**
+ * Menyaring HTML infografis buatan model sebelum disimpan. Lapis pertama saja: browser juga merendernya di iframe
+ * tanpa izin skrip dan di bawah CSP aplikasi. Yang dibuang: skrip, elemen yang memuat atau menyematkan halaman lain,
+ * atribut penangan event, dan semua alamat luar (http, https, //, javascript:), supaya isi chat tidak bisa dikirim
+ * ke luar lewat gambar atau font. Gambar data: dan SVG di dalam dokumen tetap boleh.
+ */
+export function sanitizeInfographic(html: string | null | undefined): string | null {
+  if (!html) return null;
+  let out = html.trim();
+  if (!out || out.length > INFOGRAPHIC_MAX_CHARS) return null;
+  // Pagar kode Markdown yang kadang ikut ditulis model.
+  out = out.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').trim();
+  out = out
+    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/<script\b[^>]*\/?>/gi, '')
+    .replace(/<\/?(iframe|frame|frameset|object|embed|applet|link|meta|base|form|input|button|textarea|select|portal)\b[^>]*>/gi, '')
+    .replace(/\s(on[a-z]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href|src|srcset|xlink:href|action|formaction|poster|background)\s*=\s*("\s*(?:https?:|\/\/|javascript:)[^"]*"|'\s*(?:https?:|\/\/|javascript:)[^']*'|(?:https?:|\/\/|javascript:)[^\s>]*)/gi, '$1=""')
+    .replace(/url\(\s*(["']?)\s*(?:https?:|\/\/|javascript:)[^)]*\)/gi, 'none')
+    .replace(/@import\b[^;]*;?/gi, '');
+  return out.trim() || null;
 }
 
 /* ---------- Penyamaran data pribadi ---------- */

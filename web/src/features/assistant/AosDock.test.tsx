@@ -10,6 +10,12 @@ import { clearAosLive, setAosLive } from './live';
 import { aosKeys } from './queries';
 import { aosMessage, aosThread, DRAFT, draftAnswer, offerMessage } from './test-fixtures';
 
+// Menggambar PNG butuh kanvas sungguhan; di test cukup dipastikan hasilnya sampai ke kotak balas.
+vi.mock('./infographic', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./infographic')>()),
+  infographicPng: vi.fn(async () => new Blob(['png'], { type: 'image/png' })),
+}));
+
 const conversation: ConversationDTO = {
   id: '1',
   contact: { id: 'c1', waId: '6281200000001', name: 'Bu Sari', profileName: null, displayName: 'Bu Sari', firstSeenAt: '2026-11-01T00:00:00.000Z' },
@@ -264,13 +270,56 @@ describe('AosDock: answers', () => {
     expect(screen.getByText('Keyakinan rendah · cek dulu sebelum dikirim')).toBeTruthy();
   });
 
-  it('shows an answer without a draft as plain text', () => {
+  it('shows an answer without a draft as plain text, with the same buttons as a draft', () => {
     const text = 'WP menanyakan cara mendapatkan kembali EFIN.';
-    setup(aosThread([aosMessage({ id: '142', kind: 'answer', text, answer: { draft: null, notes: null, confidence: null, sources: [] } })]));
+    const { composer } = setup(aosThread([aosMessage({ id: '142', kind: 'answer', text, answer: { draft: null, notes: null, confidence: null, sources: [] } })]));
     openPanel();
     expect(screen.getByText(text)).toBeTruthy();
     expect(screen.queryByText('Draf balasan')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Pakai' })).toBeNull();
+    for (const name of ['Salin', 'Perpendek', 'Lebih ramah', 'Buat ulang']) expect(screen.getByRole('button', { name })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Pakai' }));
+    expect(composer.insertText).toHaveBeenCalledExactlyOnceWith(text, 'replace');
+  });
+
+  it('splits a long answer into parts that each fit one WhatsApp message, to be sent in order', async () => {
+    const para = (n: number) => `Bagian isi ${n}. ` + 'Wajib pajak orang pribadi menyampaikan SPT Tahunan paling lambat akhir Maret. '.repeat(12);
+    const long = [1, 2, 3, 4, 5, 6].map(para).join('\n\n');
+    expect(long.length).toBeGreaterThan(4096);
+    const { composer } = setup(aosThread([aosMessage({ id: '144', kind: 'answer', text: long, answer: { draft: null, notes: null, confidence: null, sources: [] } })]));
+    openPanel();
+    expect(screen.getByText(/dibagi 2 bagian\. Kirim berurutan/)).toBeTruthy();
+    expect(screen.getByText('Draf balasan · bagian 1 dari 2')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Pakai bagian 2' }));
+    const [sent] = composer.insertText.mock.calls[0]!;
+    expect(sent.length).toBeLessThanOrEqual(4000);
+    expect(sent.startsWith('Bagian isi')).toBe(true);
+    // Satu set tombol perbaikan untuk seluruh jawaban.
+    expect(screen.getAllByRole('button', { name: 'Perpendek' })).toHaveLength(1);
+  });
+
+  it('shows an infographic in a sandbox and attaches it to the reply as a picture', async () => {
+    const html = '<!doctype html><html><head><style>body{background:#212C5F}</style></head><body><h1>Lapor SPT</h1></body></html>';
+    const { composer } = setup(
+      aosThread([aosMessage({ id: '145', kind: 'answer', text: `<infografis>${html}</infografis>Infografis siap.`, answer: { draft: null, notes: null, confidence: null, sources: [], infographic: html } })]),
+    );
+    openPanel();
+    const frame = screen.getByTitle('Infografis AOS') as HTMLIFrameElement;
+    // Tanpa izin skrip: dokumen buatan model tidak bisa menjalankan apa pun.
+    expect(frame.getAttribute('sandbox')).toBe('allow-same-origin');
+    expect(frame.getAttribute('srcdoc')).toContain('<h1>Lapor SPT</h1>');
+    fireEvent.click(screen.getByRole('button', { name: /Lampirkan ke balasan/ }));
+    await waitFor(() => expect(composer.addFiles).toHaveBeenCalledTimes(1));
+    const [[file]] = composer.addFiles.mock.calls[0]! as [[File]];
+    expect(file.type).toBe('image/png');
+    expect(file.name).toMatch(/^infografis-aos-\d{8}-\d{4}\.png$/);
+  });
+
+  it('asks AOS for an infographic from the quick chip or from an answer', async () => {
+    fetchMock.mockImplementation(() => new Promise<Response>(() => undefined));
+    setup(aosThread([draftAnswer('146')]));
+    openPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Buat infografis' }));
+    await posted([['/api/conversations/1/assistant/messages', { action: 'infographic' }]]);
   });
 
   it('shows an error message in its own bubble', () => {

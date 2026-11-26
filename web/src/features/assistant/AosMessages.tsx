@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { BookOpen, BookPlus, MoreHorizontal, ThumbsDown, ThumbsUp, Zap } from 'lucide-react';
+import { BookOpen, BookPlus, ImageIcon, MoreHorizontal, ThumbsDown, ThumbsUp, Zap } from 'lucide-react';
 import {
   AOS_MODELS,
   AOS_PROVIDER_LABEL,
+  draftPartsForWhatsApp,
   parseAosAnswer,
+  splitForWhatsApp,
   type AosAnswer,
   type AosAskBody,
   type AosConfidence,
@@ -16,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { formatDateTime, formatTime } from '@/lib/format';
 import { FormattedText } from '@/lib/whatsapp-format';
 import { AosLogo } from './AosLogo';
+import { InfographicCard, InfographicPending } from './InfographicCard';
 import { useAosLive } from './live';
 import { isAosRunning, type AosSaveTarget } from './queries';
 
@@ -31,6 +34,8 @@ export interface AosActions {
   use: (message: AosMessageDTO, draft: string) => void;
   copy: (text: string) => void;
   save: (message: AosMessageDTO, target: AosSaveTarget) => void;
+  /** Lampirkan berkas (gambar infografis) ke kotak balas WhatsApp; petugas sendiri yang mengirim. */
+  attach: (file: File) => void;
 }
 
 interface MessageProps {
@@ -117,10 +122,13 @@ function UserMessage({ message }: { message: AosMessageDTO }) {
   );
 }
 
-function Draft({ text }: { text: string }) {
+function Draft({ text, part, of }: { text: string; part?: number; of?: number }) {
   return (
     <>
-      <p className="aos-label">Draf balasan</p>
+      <p className="aos-label">
+        {of && of > 1 ? `Draf balasan · bagian ${part} dari ${of}` : 'Draf balasan'}
+        {of && of > 1 && <span className="aos-label-hint"> · {text.length.toLocaleString('id-ID')} karakter</span>}
+      </p>
       <div className="aos-draft">
         <FormattedText text={text} />
       </div>
@@ -224,16 +232,23 @@ function Feedback({ message, actions }: MessageProps) {
   );
 }
 
-function DraftActions({ message, draft, actions }: MessageProps & { draft: string }) {
-  const refine = (action: 'shorten' | 'friendlier' | 'regenerate') => actions.ask({ action, targetId: message.id });
+function UseButtons({ message, text, actions, part }: MessageProps & { text: string; part?: number }) {
   return (
-    <div className="aos-acts">
-      <button type="button" className="aos-pill" data-primary="true" onClick={() => actions.use(message, draft)}>
-        Pakai
+    <>
+      <button type="button" className="aos-pill" data-primary="true" onClick={() => actions.use(message, text)}>
+        {part ? `Pakai bagian ${part}` : 'Pakai'}
       </button>
-      <button type="button" className="aos-pill" onClick={() => actions.copy(draft)}>
+      <button type="button" className="aos-pill" onClick={() => actions.copy(text)}>
         Salin
       </button>
+    </>
+  );
+}
+
+function RefineButtons({ message, actions }: MessageProps) {
+  const refine = (action: 'shorten' | 'friendlier' | 'regenerate') => actions.ask({ action, targetId: message.id });
+  return (
+    <>
       <button type="button" className="aos-pill" disabled={actions.busy} onClick={() => refine('shorten')}>
         Perpendek
       </button>
@@ -251,6 +266,9 @@ function DraftActions({ message, draft, actions }: MessageProps & { draft: strin
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuItem disabled={actions.busy} onSelect={() => actions.ask({ action: 'infographic', targetId: message.id })}>
+            <ImageIcon /> Jadikan infografis
+          </DropdownMenuItem>
           {message.savedDocumentId ? (
             <DropdownMenuItem asChild>
               <Link to={`/pustaka?doc=${encodeURIComponent(message.savedDocumentId)}`}>
@@ -267,7 +285,44 @@ function DraftActions({ message, draft, actions }: MessageProps & { draft: strin
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </>
+  );
+}
+
+/**
+ * Isi jawaban yang bisa dipakai: draf (atau teks biasa bila AOS tidak menulis draf), dipecah per bagian yang
+ * masing-masing muat dalam satu pesan WhatsApp. Setiap bagian punya tombol Pakai/Salin sendiri, urut sesuai urutan
+ * kirim; tombol perbaikan berlaku untuk seluruh jawaban.
+ */
+function UsableText({ message, actions, parts, asDraft }: MessageProps & { parts: string[]; asDraft: boolean }) {
+  if (parts.length === 1) {
+    return (
+      <>
+        {asDraft ? <Draft text={parts[0]!} /> : <FormattedText text={parts[0]!} />}
+        <div className="aos-acts">
+          <UseButtons message={message} text={parts[0]!} actions={actions} />
+          <RefineButtons message={message} actions={actions} />
+        </div>
+      </>
+    );
+  }
+  return (
+    <>
+      {!asDraft && (
+        <p className="aos-split-note">Teksnya melebihi batas satu pesan WhatsApp, jadi dibagi {parts.length} bagian. Kirim berurutan.</p>
+      )}
+      {parts.map((part, i) => (
+        <div key={i} className="aos-part">
+          <Draft text={part} part={i + 1} of={parts.length} />
+          <div className="aos-acts">
+            <UseButtons message={message} text={part} actions={actions} part={i + 1} />
+          </div>
+        </div>
+      ))}
+      <div className="aos-acts">
+        <RefineButtons message={message} actions={actions} />
+      </div>
+    </>
   );
 }
 
@@ -280,22 +335,34 @@ function DoneAnswer({ message, actions }: MessageProps) {
     sources: [],
   };
   const { draft, notes, confidence, sources } = answer;
-  // Jawaban tanpa draf (ringkasan chat, penjelasan pesan) ditampilkan sebagai teks biasa.
+  const infographic = answer.infographic ?? null;
+  // Jawaban tanpa draf (ringkasan chat, penjelasan) tetap bisa dipakai, disalin, dan diperbaiki seperti draf.
   const plain = draft ? null : parsed.plain;
+  // Pada jawaban infografis, teks di luar draf hanya pengantar untuk petugas: tidak perlu tombol Pakai.
+  const introOnly = !!infographic && !draft;
+  const parts = introOnly
+    ? []
+    : draft
+    ? answer.parts?.length
+      ? answer.parts
+      : draftPartsForWhatsApp(parsed.draftParts.length ? parsed.draftParts : [draft])
+    : plain
+      ? splitForWhatsApp(plain)
+      : [];
   const meta = metaLine(message);
   return (
     <AosBubble>
-      {draft ? <Draft text={draft} /> : plain ? <FormattedText text={plain} /> : !notes && <p>AOS tidak memberikan jawaban.</p>}
-      {draft ? (
-        <DraftActions message={message} draft={draft} actions={actions} />
+      {infographic && <InfographicCard html={infographic} onAttach={actions.attach} />}
+      {parts.length > 0 ? (
+        <UsableText message={message} actions={actions} parts={parts} asDraft={!!draft} />
       ) : (
-        plain && (
-          <div className="aos-acts">
-            <button type="button" className="aos-pill" onClick={() => actions.copy(plain)}>
-              Salin
-            </button>
-          </div>
-        )
+        !notes && !infographic && <p>AOS tidak memberikan jawaban.</p>
+      )}
+      {introOnly && plain && <FormattedText text={plain} />}
+      {infographic && parts.length === 0 && (
+        <div className="aos-acts">
+          <RefineButtons message={message} actions={actions} />
+        </div>
       )}
       {notes && <Notes text={notes} />}
       {sources.length > 0 && (
@@ -330,12 +397,14 @@ const withoutPartialTag = (text: string) => text.replace(/<\/?[a-z]*$/, '');
 /** Jawaban yang sedang dikerjakan: teks dari event delta (bagian yang belum ditutup ikut tampil) dan langkah terakhir. */
 function RunningAnswer({ message, actions }: MessageProps) {
   const live = useAosLive(message.id);
-  const { draft, plain, notes } = parseAosAnswer(withoutPartialTag(live?.text ?? message.text ?? ''));
+  const { draft, plain, notes, infographic, infographicPending } = parseAosAnswer(withoutPartialTag(live?.text ?? message.text ?? ''));
   const steps = live?.steps.length ? live.steps : message.steps;
+  const drawing = infographicPending || !!infographic;
   return (
     <>
-      {(draft || plain || notes) && (
+      {(draft || plain || notes || drawing) && (
         <AosBubble>
+          {drawing && <InfographicPending />}
           {draft ? <Draft text={draft} /> : plain && <FormattedText text={plain} />}
           {notes && <Notes text={notes} />}
         </AosBubble>

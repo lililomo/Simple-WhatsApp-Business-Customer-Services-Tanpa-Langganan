@@ -1,6 +1,8 @@
 import { and, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 import {
+  draftPartsForWhatsApp,
   parseAosAnswer,
+  sanitizeInfographic,
   unmaskSensitive,
   type AosAnswer,
   type AosAskBody,
@@ -35,6 +37,7 @@ import {
   answerUserPrompt,
   friendlierInstruction,
   regenerateInstruction,
+  infographicInstruction,
   shortenInstruction,
   triageSystemPrompt,
   triageUserPrompt,
@@ -206,7 +209,11 @@ async function runAnswer(deps: AppDeps, job: AnswerJob): Promise<void> {
       notes: parsed.notes,
       confidence: parsed.draft ? parsed.confidence : null,
       sources: resolveSources(parsed.sourceLines, outcome, settings),
+      infographic: sanitizeInfographic(parsed.infographic),
     };
+    // Setiap bagian muat dalam satu pesan WhatsApp; bagian disimpan hanya bila lebih dari satu.
+    const parts = draftPartsForWhatsApp(parsed.draftParts);
+    if (parts.length > 1) answer.parts = parts;
     const data: AiMessageData = { instruction: job.instruction, steps, answer };
     await db
       .update(aiMessages)
@@ -312,15 +319,21 @@ export async function ask(deps: AppDeps, conversationId: number, user: SessionUs
     label = ACTION_LABEL[body.action];
     if (body.action === 'summarize') instruction = SUMMARIZE_INSTRUCTION;
     else if (body.action === 'explain') instruction = EXPLAIN_INSTRUCTION;
+    else if (body.action === 'infographic' && !body.targetId) instruction = infographicInstruction(null);
     else {
       if (!body.targetId) throw new AppError(400, 'aos_target', 'Pilih dulu jawaban yang ingin diubah.');
       const target = await loadAiMessage(db, Number(body.targetId));
       if (!target || target.thread.id !== thread.id || target.row.kind !== 'answer' || target.row.status !== 'done') throw notFound('Jawaban');
       const data = (target.row.data ?? {}) as AiMessageData;
-      const draft = data.answer?.draft ?? null;
+      // Jawaban berupa teks biasa (tanpa draf) juga boleh diperpendek, diperhalus, atau dijadikan infografis.
+      const draft = data.answer?.draft ?? parseAosAnswer(target.row.text ?? '').plain ?? null;
       if (body.action === 'regenerate') instruction = regenerateInstruction(data.instruction ?? DEFAULT_DRAFT_INSTRUCTION, draft);
-      else {
-        if (!draft) throw new AppError(400, 'aos_no_draft', 'Jawaban itu tidak memuat draf balasan.');
+      else if (body.action === 'infographic') {
+        const basis = draft;
+        if (!basis) throw new AppError(400, 'aos_no_draft', 'Jawaban itu tidak memuat isi yang bisa dijadikan infografis.');
+        instruction = infographicInstruction(basis);
+      } else {
+        if (!draft) throw new AppError(400, 'aos_no_draft', 'Jawaban itu tidak memuat teks yang bisa diubah.');
         instruction = body.action === 'shorten' ? shortenInstruction(draft) : friendlierInstruction(draft);
       }
     }
